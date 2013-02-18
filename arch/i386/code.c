@@ -353,7 +353,7 @@ bfcode(struct symtab **sp, int cnt)
         if (cftnsp->sflags & SSTDCALL) {
 		/* XXX interaction STDCALL and struct return? */
 		argstacksize += (argbase - ARGINIT)/SZCHAR;
-#ifdef os_win32
+#ifdef PECOFFABI
 
                 char buf[256];
                 char *name;
