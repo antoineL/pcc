@@ -52,6 +52,9 @@
 #ifndef S_ISDIR
 #define S_ISDIR(m)	(((m) & S_IFMT) == S_IFDIR)
 #endif
+#if defined(WIN32) && !defined(_WIN32)
+#define _WIN32 WIN32
+#endif
 
 #define	SBSIZE	1000000
 
@@ -369,7 +372,7 @@ addidir(char *idir, struct incs **ww)
 		return; /* ignore */
 	if (*ww != NULL) {
 		for (w = *ww; w->next; w = w->next) {
-#ifdef os_win32
+#ifdef _WIN32
 			if (strcmp(w->dir, idir) == 0)
 				return;
 #else
@@ -377,7 +380,7 @@ addidir(char *idir, struct incs **ww)
 				return;
 #endif
 		}
-#ifdef os_win32
+#ifdef _WIN32
 		if (strcmp(w->dir, idir) == 0)
 			return;
 #else
