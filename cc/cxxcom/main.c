@@ -30,6 +30,8 @@
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#elif defined _WIN32
+#include <io.h> 
 #endif
 #include <signal.h>
 #include <string.h>

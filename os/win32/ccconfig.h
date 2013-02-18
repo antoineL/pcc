@@ -8,6 +8,8 @@
 /* requires microsoft toolkit headers and linker, and pcc-libs */
 #define CPPADD		{ "-DWIN32", "-D_WIN32", NULL }
 #define DEFLIBS		{ "/subsystem:console", "msvcrt.lib", "libpcc.a", NULL }
+#define DEFPROFLIBS	{ "/subsystem:console", "msvcrt.lib", "libpcc.a", NULL }
+#define DEFCXXLIBS	{ "/subsystem:console", "libp++.a", "msvcrt.lib", "libpcc.a", NULL }
 #else
 /* common cpp predefines */
 #define CPPADD		{ "-DWIN32", "-D_WIN32", "-D__MSVCRT__", "-D__MINGW32__", NULL }

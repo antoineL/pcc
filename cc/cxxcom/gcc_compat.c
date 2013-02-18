@@ -212,7 +212,7 @@ gcc_keyword(char *str, NODE **n)
 #define	A2_STR	0x200
 #define	A3_STR	0x400
 
-#ifdef __MSC__
+#if defined(_MSC_VER) && _MSC_VER<=1600
 #define	CS(x)
 #else
 #define CS(x) [x] =

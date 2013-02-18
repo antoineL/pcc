@@ -101,14 +101,19 @@
 #endif
 #include <assert.h>
 
-#ifdef  _WIN32
+#if defined(WIN32) && !defined(_WIN32)
+#define _WIN32 WIN32
+#endif
+#ifdef _WIN32
 #include <windows.h>
 #include <process.h>
 #include <io.h>
+#ifndef F_OK
 #define F_OK	0x00
 #define R_OK	0x04
 #define W_OK	0x02
-#define X_OK	R_OK
+#define X_OK	0x01
+#endif
 #endif
 
 #include "compat.h"
@@ -457,40 +462,6 @@ main(int argc, char *argv[])
 
 #ifdef PCC_EARLY_SETUP
 	PCC_EARLY_SETUP
-#endif
-
-#ifdef _WIN32
-	/* have to prefix path early.  -B may override */
-	incdir = win32pathsubst(incdir);
-	altincdir = win32pathsubst(altincdir);
-	libdir = win32pathsubst(libdir);
-#ifdef PCCINCDIR
-	pccincdir = win32pathsubst(pccincdir);
-	pxxincdir = win32pathsubst(pxxincdir);
-#endif
-#ifdef PCCLIBDIR
-	pcclibdir = win32pathsubst(pcclibdir);
-#endif
-	passp = win32pathsubst(passp);
-	pass0 = win32pathsubst(pass0);
-#ifdef STARTFILES
-	for (i = 0; startfiles[i] != NULL; i++)
-		startfiles[i] = win32pathsubst(startfiles[i]);
-	for (i = 0; endfiles[i] != NULL; i++)
-		endfiles[i] = win32pathsubst(endfiles[i]);
-#endif
-#ifdef STARTFILES_T
-	for (i = 0; startfiles_T[i] != NULL; i++)
-		startfiles_T[i] = win32pathsubst(startfiles_T[i]);
-	for (i = 0; endfiles_T[i] != NULL; i++)
-		endfiles_T[i] = win32pathsubst(endfiles_T[i]);
-#endif
-#ifdef STARTFILES_S
-	for (i = 0; startfiles_S[i] != NULL; i++)
-		startfiles_S[i] = win32pathsubst(startfiles_S[i]);
-	for (i = 0; endfiles_S[i] != NULL; i++)
-		endfiles_S[i] = win32pathsubst(endfiles_S[i]);
-#endif
 #endif
 
 	while (--lac) {
@@ -1134,18 +1105,33 @@ find_file(const char *file, struct strlist *path, int mode)
 	char *f;
 	size_t lf, lp;
 	int need_sep;
+#ifdef _WIN32
+	int exe_ext;
+#else
+#define exe_ext 0
+#endif
 
 	lf = strlen(file);
 	STRLIST_FOREACH(s, path) {
 		lp = strlen(s->value);
 		need_sep = (lp && s->value[lp - 1] != '/') ? 1 : 0;
-		f = xmalloc(lp + lf + need_sep + 1);
+#ifdef _WIN32
+		exe_ext = mode == X_OK ? (int)strlen(".exe") : 0;
+		mode &= ~X_OK;
+#endif
+		f = xmalloc(lp + lf + need_sep + exe_ext + 1);
 		memcpy(f, s->value, lp);
 		if (need_sep)
 			f[lp] = '/';
 		memcpy(f + lp + need_sep, file, lf + 1);
 		if (access(f, mode) == 0)
 			return f;
+#ifdef _WIN32
+		if (exe_ext)
+			memcpy(f + lp + need_sep + lf, ".exe", exe_ext + 1);
+		if (access(f, mode) == 0)
+			return f;
+#endif
 		free(f);
 	}
 	return xstrdup(file);
@@ -1482,6 +1468,9 @@ expand_sysroot(void)
 
 	for (i = 0; lists[i] != NULL; ++i) {
 		STRLIST_FOREACH(s, lists[i]) {
+#ifdef _WIN32
+			s->value = win32pathsubst(s->value);
+#endif
 			if (s->value[0] != '=')
 				continue;
 			sysroot_len = strlen(sysroots[i]);
@@ -1796,6 +1785,7 @@ static int one = 1;
 
 struct flgcheck asflgcheck[] = {
 #if defined(USE_YASM)
+	{ &one, 1, "-w" },
 	{ &one, 1, "-p" },
 	{ &one, 1, "gnu" },
 	{ &one, 1, "-f" },
@@ -1889,6 +1879,7 @@ setup_ld_flags(void)
 {
 	char *b, *e;
 	int i;
+	struct string *s;
 
 #ifdef PCC_SETUP_LD_ARGS
 	PCC_SETUP_LD_ARGS
@@ -1917,10 +1908,18 @@ setup_ld_flags(void)
 		/* library search paths */
 		if (pcclibdir)
 			strlist_append(&late_linker_flags,
+#ifdef _WIN32
+			    cat("-L", win32pathsubst(pcclibdir)));
+#else
 			    cat("-L", pcclibdir));
+#endif
 		for (i = 0; deflibdirs[i]; i++)
 			strlist_append(&late_linker_flags,
+#ifdef _WIN32
+			    cat("-L", win32pathsubst(deflibdirs[i])));
+#else
 			    cat("-L", deflibdirs[i]));
+#endif
 		/* standard libraries */
 		if (pgflag) {
 			for (i = 0; defproflibs[i]; i++)

@@ -1143,7 +1143,14 @@ placePhiFunctions(struct p2env *p2e)
 	maxtmp = ((struct interpass_prolog *)bb->first)->ip_tmpnum;
 	defsites.size = maxtmp - defsites.low + 1;
 	defsites.arr = tmpcalloc(defsites.size*sizeof(struct pvarinfo *));
+#ifdef _MSC_VER
+ #pragma warning(push)
+ #pragma warning(disable:4116)
+#endif
 	defsites.stack = tmpcalloc(defsites.size*sizeof(SLIST_HEAD(, varstack)));
+#ifdef _MSC_VER
+ #pragma warning(pop)
+#endif
 	
 	for (i=0;i<defsites.size;i++)
 		SLIST_INIT(&defsites.stack[i]);	
