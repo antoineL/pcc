@@ -177,7 +177,7 @@ getopt(int argc, char * const argv[], const char *args)
 }
 #endif
 
-#if !defined(HAVE_MKSTEMP) && !defined(os_win32)
+#if !defined(HAVE_MKSTEMP) && !defined(_WIN32)
 #include <fcntl.h>	/* open() */
 #include <unistd.h>	/* getpid() */
 

@@ -101,14 +101,19 @@
 #endif
 #include <assert.h>
 
-#ifdef os_win32
+#if defined(WIN32) && !defined(_WIN32)
+#define _WIN32 WIN32
+#endif
+#ifdef _WIN32
 #include <windows.h>
 #include <process.h>
 #include <io.h>
+#ifndef F_OK
 #define F_OK	0x00
 #define R_OK	0x04
 #define W_OK	0x02
-#define X_OK	R_OK
+#define X_OK	0x01
+#endif
 #endif
 
 #include "compat.h"
@@ -265,7 +270,7 @@ void setup_ccom_flags(void);
 void setup_as_flags(void);
 void setup_ld_flags(void);
 static void expand_sysroot(void);
-#ifdef os_win32
+#ifdef _WIN32
 char *win32pathsubst(char *);
 char *win32commandline(struct strlist *l);
 #endif
@@ -444,38 +449,19 @@ main(int argc, char *argv[])
 	PCC_EARLY_SETUP
 #endif
 
-#ifdef os_win32
+#ifdef _WIN32
 	/* have to prefix path early.  -B may override */
-	incdir = win32pathsubst(incdir);
-	altincdir = win32pathsubst(altincdir);
-	libdir = win32pathsubst(libdir);
-#ifdef PCCINCDIR
-	pccincdir = win32pathsubst(pccincdir);
-	pxxincdir = win32pathsubst(pxxincdir);
-#endif
 #ifdef PCCLIBDIR
 	pcclibdir = win32pathsubst(pcclibdir);
 #endif
+	/* PCCINCDIR is handled as all the include paths
+	 * as part of expand_sysroot()
+	 */
 	passp = win32pathsubst(passp);
 	pass0 = win32pathsubst(pass0);
-#ifdef STARTFILES
-	for (i = 0; startfiles[i] != NULL; i++)
-		startfiles[i] = win32pathsubst(startfiles[i]);
-	for (i = 0; endfiles[i] != NULL; i++)
-		endfiles[i] = win32pathsubst(endfiles[i]);
-#endif
-#ifdef STARTFILES_T
-	for (i = 0; startfiles_T[i] != NULL; i++)
-		startfiles_T[i] = win32pathsubst(startfiles_T[i]);
-	for (i = 0; endfiles_T[i] != NULL; i++)
-		endfiles_T[i] = win32pathsubst(endfiles_T[i]);
-#endif
-#ifdef STARTFILES_S
-	for (i = 0; startfiles_S[i] != NULL; i++)
-		startfiles_S[i] = win32pathsubst(startfiles_S[i]);
-	for (i = 0; endfiles_S[i] != NULL; i++)
-		endfiles_S[i] = win32pathsubst(endfiles_S[i]);
-#endif
+	passxx0 = win32pathsubst(passxx0);
+	as = win32pathsubst(as);
+	ld = win32pathsubst(ld);
 #endif
 
 	while (--lac) {
@@ -1086,16 +1072,29 @@ find_file(const char *file, struct strlist *path, int mode)
 	char *f;
 	size_t lf, lp;
 	int need_sep;
+#ifdef _WIN32
+	int need_exeext;
+#else
+#define need_exeext 0
+#endif
 
 	lf = strlen(file);
 	STRLIST_FOREACH(s, path) {
 		lp = strlen(s->value);
 		need_sep = (lp && s->value[lp - 1] != '/') ? 1 : 0;
-		f = xmalloc(lp + lf + need_sep + 1);
+#ifdef _WIN32
+		need_exeext = mode == X_OK ? strlen(".exe") : 0;
+#endif
+		f = xmalloc(lp + lf + need_sep + need_exeext + 1);
 		memcpy(f, s->value, lp);
 		if (need_sep)
 			f[lp] = '/';
 		memcpy(f + lp + need_sep, file, lf + 1);
+#ifdef _WIN32
+		if (need_exeext)
+			memcpy(f + lp + need_sep + lf, ".exe", need_exeext + 1);
+		mode &= ~X_OK;
+#endif
 		if (access(f, mode) == 0)
 			return f;
 		free(f);
@@ -1268,7 +1267,7 @@ setsuf(char *s, char ch)
 	return rp;
 }
 
-#ifdef os_win32
+#ifdef _WIN32
 
 static int
 strlist_exec(struct strlist *l)
@@ -1376,7 +1375,7 @@ cunlink(char *f)
 	return (unlink(f));
 }
 
-#ifdef os_win32
+#ifdef _WIN32
 char *
 gettmp(void)
 {
@@ -1426,6 +1425,9 @@ expand_sysroot(void)
 
 	for (i = 0; lists[i] != NULL; ++i) {
 		STRLIST_FOREACH(s, lists[i]) {
+#ifdef _WIN32
+			s->value = win32pathsubst(s->value);
+#endif
 			if (s->value[0] != '=')
 				continue;
 			sysroot_len = strlen(sysroots[i]);
@@ -1878,9 +1880,9 @@ setup_ld_flags(void)
 		}
 		strap(&middle_linker_flags, &crtdirs, b, 'p');
 		strap(&late_linker_flags, &crtdirs, e, 'a');
-		if (CRTI[0])
+		if (CRTI && CRTI[0])
 			strap(&middle_linker_flags, &crtdirs, CRTI, 'p');
-		if (CRTN[0])
+		if (CRTN && CRTN[0])
 			strap(&late_linker_flags, &crtdirs, CRTN, 'a');
 		if (shared == 0) {
 			if (pgflag)
@@ -1896,7 +1898,7 @@ setup_ld_flags(void)
 	}
 }
 
-#ifdef os_win32
+#ifdef _WIN32
 char *
 win32pathsubst(char *s)
 {
