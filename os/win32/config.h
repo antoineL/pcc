@@ -3,6 +3,7 @@
  */
 #define PREPROCESSOR "%PCCDIR%\\libexec\\cpp.exe"
 #define COMPILER "%PCCDIR%\\libexec\\ccom.exe"
+#define CXXCOMPILER "%PCCDIR%\\libexec\\cxxcom.exe"
 
 #define USE_YASM
 
@@ -29,7 +30,9 @@
 #define PCCINCDIR "%PCCDIR%\\lib\\i386-win32\\1.1.0\\include\\"
 
 #if !defined(vsnprintf)
+#if defined(_MSC_VER) && _MSC_VER >= 1200 && _MSC_VER < 1500
 #define vsnprintf _vsnprintf
+#endif
 #endif
 /* windows defines (u)uintptr_t in stddef.h, not inttypes.h */
 #include <stddef.h>
