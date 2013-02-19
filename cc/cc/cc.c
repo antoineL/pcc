@@ -1575,7 +1575,7 @@ static char *fpflags[] = {
 #ifdef TARGET_FLT_EVAL_METHOD
 	"-D__FLT_EVAL_METHOD__=" MKS(TARGET_FLT_EVAL_METHOD),
 #endif
-#if defined(os_darwin) || defined(os_netbsd)
+#if defined(os_darwin) || defined(os_netbsd) || defined(os_minix)
 	"-D__FLT_RADIX__=2",
 #if defined(mach_vax)
 	"-D__FLT_DIG__=6",
