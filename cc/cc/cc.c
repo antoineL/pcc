@@ -1552,7 +1552,7 @@ static char *gcppflags[] = {
 
 /* These should _not_ be defined here */
 static char *fpflags[] = {
-#if defined(os_darwin) || defined(os_netbsd)
+#if defined(os_darwin) || defined(os_netbsd) || defined(os_minix)
 	"-D__FLT_RADIX__=2",
 	"-D__FLT_DIG__=6",
 	"-D__FLT_EPSILON__=1.19209290e-07F",
