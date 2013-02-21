@@ -1,4 +1,4 @@
-/*	$Id$	*/
+/*	Id: manifest.h,v 1.102 2012/09/26 19:56:12 plunky Exp 	*/	
 /*
  * Copyright(C) Caldera International Inc. 2001-2002. All rights reserved.
  *
@@ -346,9 +346,9 @@ void fwalk(NODE *t, void (*f)(NODE *, int, int *, int *), int down);
 void flist(NODE *p, void (*f)(NODE *, void *), void *);
 void listf(NODE *p, void (*f)(NODE *));
 NODE *listarg(NODE *p, int n, int *cnt);
-void cerror(char *s, ...);
-void werror(char *s, ...);
-void uerror(char *s, ...);
+void cerror(const char *s, ...);
+void werror(const char *s, ...);
+void uerror(const char *s, ...);
 void mkdope(void);
 void tcheck(void);
 
