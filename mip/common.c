@@ -1,4 +1,4 @@
-/*	$Id$	*/
+/*	Id: common.c,v 1.108 2012/09/26 19:56:12 plunky Exp 	*/	
 /*
  * Copyright (c) 2003 Anders Magnusson (ragge@ludd.luth.se).
  * All rights reserved.
@@ -93,7 +93,7 @@ incerr(void)
  * it tells where the error took place
  */
 void
-uerror(char *s, ...)
+uerror(const char *s, ...)
 {
 	va_list ap;
 
@@ -109,7 +109,7 @@ uerror(char *s, ...)
  * compiler error: die
  */
 void
-cerror(char *s, ...)
+cerror(const char *s, ...)
 {
 	va_list ap;
 
@@ -133,7 +133,7 @@ cerror(char *s, ...)
  * warning
  */
 void
-werror(char *s, ...)
+werror(const char *s, ...)
 {
 	va_list ap;
 
