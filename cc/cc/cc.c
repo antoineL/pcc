@@ -201,8 +201,11 @@ char *cppmdadd[] = CPPMDADD;
 #ifndef PCCLIBDIR	/* set by autoconf */
 #define PCCLIBDIR	NULL
 #endif
+#ifndef LIBDIR
+#define	LIBDIR	  	"/usr/lib/"
+#endif
 #ifndef DEFLIBDIRS	/* default library search paths */
-#define DEFLIBDIRS	{ "/usr/lib/", 0 }
+#define DEFLIBDIRS	{ "=" LIBDIR, 0 }
 #endif
 #ifndef DEFLIBS		/* default libraries included */
 #define	DEFLIBS		{ "-lpcc", "-lc", "-lpcc", 0 }
