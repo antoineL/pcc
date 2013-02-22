@@ -680,7 +680,11 @@ gcc_modefix(NODE *p)
 		return;
 	}
 	i = mods[i].typ;
-	switch (i) {
+	if (i>=1 && i<=MAXTYPES) {
+		MODTYPE(p->n_type, ctype(i));
+		if (u)
+			p->n_type = ENUNSIGN(p->n_type);
+	} else switch (i) {
 #ifdef TARGET_TIMODE
 	case 800:
 		if (BTYPE(p->n_type) == STRTY)
@@ -697,12 +701,6 @@ gcc_modefix(NODE *p)
 		p->n_ap = attr_add(p->n_ap, a2);
 		break;
 #endif
-	case 1 ... MAXTYPES:
-		MODTYPE(p->n_type, ctype(i));
-		if (u)
-			p->n_type = ENUNSIGN(p->n_type);
-		break;
-
 	case FCOMPLEX:
 	case COMPLEX:
 	case LCOMPLEX:
