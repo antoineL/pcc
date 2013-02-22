@@ -1078,6 +1078,7 @@ find_file(const char *file, struct strlist *path, int mode)
 #ifdef _WIN32
 		if (need_exeext)
 			memcpy(f + lp + need_sep + lf, ".exe", need_exeext + 1);
+		mode &= ~X_OK;
 #endif
 		if (access(f, mode) == 0)
 			return f;
@@ -1411,11 +1412,11 @@ expand_sysroot(void)
 
 	for (i = 0; lists[i] != NULL; ++i) {
 		STRLIST_FOREACH(s, lists[i]) {
-			if (s->value[0] != '=')
-				continue;
 #ifdef _WIN32
 			s->value = win32pathsubst(s->value);
 #endif
+			if (s->value[0] != '=')
+				continue;
 			sysroot_len = strlen(sysroots[i]);
 			/* Skipped '=' compensates additional space for '\0' */
 			value_len = strlen(s->value);
