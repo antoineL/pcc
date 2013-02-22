@@ -1580,6 +1580,7 @@ static char *gcppflags[] = {
 #endif
 #endif
 #endif
+	NULL
 };
 
 /* These should _not_ be defined here */
@@ -1660,6 +1661,7 @@ static char *fpflags[] = {
 	"-D__LDBL_MIN__=2.2250738585072014e-308",
 #endif
 #endif
+	NULL
 };
 
 /*
@@ -1675,14 +1677,16 @@ setup_cpp_flags(void)
 		strlist_prepend(&preprocessor_flags, defflags[i]);
 
 	for (i = 0; i < (int)sizeof(gcppflags)/(int)sizeof(char *); i++)
-		strlist_prepend(&preprocessor_flags, gcppflags[i]);
+		if (gcppflags[i])
+			strlist_prepend(&preprocessor_flags, gcppflags[i]);
 	strlist_prepend(&preprocessor_flags, xgnu89 ?
 	    "-D__GNUC_GNU_INLINE__" : "-D__GNUC_STDC_INLINE__");
 
 	cksetflags(cppflgcheck, &preprocessor_flags, 'p');
 
 	for (i = 0; i < (int)sizeof(fpflags)/(int)sizeof(char *); i++)
-		strlist_prepend(&preprocessor_flags, fpflags[i]);
+		if (fpflags[i])
+			strlist_prepend(&preprocessor_flags, fpflags[i]);
 
 	for (i = 0; cppadd[i]; i++)
 		strlist_prepend(&preprocessor_flags, cppadd[i]);
@@ -1882,9 +1886,9 @@ setup_ld_flags(void)
 		}
 		strap(&middle_linker_flags, &crtdirs, b, 'p');
 		strap(&late_linker_flags, &crtdirs, e, 'a');
-		if (CRTI[0])
+		if (CRTI && CRTI[0])
 			strap(&middle_linker_flags, &crtdirs, CRTI, 'p');
-		if (CRTN[0])
+		if (CRTN && CRTN[0])
 			strap(&late_linker_flags, &crtdirs, CRTN, 'a');
 		if (shared == 0) {
 			if (pgflag)
