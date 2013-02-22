@@ -43,14 +43,15 @@
 # define LO(p) p->n_left->n_op
 # define LV(p) p->n_left->n_lval
 
-/* remove left node */
+/* remove right node */
 static NODE *
-zapleft(NODE *p)
+zapright(NODE *p)
 {
 	NODE *q;
 
 	q = p->n_left;
 	nfree(p->n_right);
+	/* XXX CHECKME: type information of node *p is lost here... */
 	nfree(p);
 	return q;
 }
@@ -167,14 +168,14 @@ again:	o = p->n_op;
 		    (RV(p) + RV(p->n_left)) < sz) {
 			/* two right-shift  by constants */
 			RV(p) += RV(p->n_left);
-			p->n_left = zapleft(p->n_left);
+			p->n_left = zapright(p->n_left);
 		}
 #if 0
 		  else if (LO(p) == LS && RCON(p->n_left) && RCON(p)) {
 			RV(p) -= RV(p->n_left);
 			if (RV(p) < 0)
 				o = p->n_op = LS, RV(p) = -RV(p);
-			p->n_left = zapleft(p->n_left);
+			p->n_left = zapright(p->n_left);
 		}
 #endif
 		if (RO(p) == ICON) {
@@ -196,7 +197,8 @@ again:	o = p->n_op;
 			if (RV(p) >= sz)
 				werror("shift larger than type");
 			if (RV(p) == 0)
-				p = zapleft(p);
+				/* p = zapright(p); */
+				goto zapright;
 		}
 		break;
 
@@ -209,12 +211,12 @@ again:	o = p->n_op;
 		if (LO(p) == LS && RCON(p->n_left) && RCON(p)) {
 			/* two left-shift  by constants */
 			RV(p) += RV(p->n_left);
-			p->n_left = zapleft(p->n_left);
+			p->n_left = zapright(p->n_left);
 		}
 #if 0
 		  else if (LO(p) == RS && RCON(p->n_left) && RCON(p)) {
 			RV(p) -= RV(p->n_left);
-			p->n_left = zapleft(p->n_left);
+			p->n_left = zapright(p->n_left);
 		}
 #endif
 		if (RO(p) == ICON) {
@@ -235,7 +237,8 @@ again:	o = p->n_op;
 			if (RV(p) >= sz)
 				werror("shift larger than type");
 			if (RV(p) == 0)  
-				p = zapleft(p);
+				/* p = zapright(p); */
+				goto zapright;
 		}
 		break;
 
@@ -281,8 +284,9 @@ again:	o = p->n_op;
 			    q->n_right->n_type == PTR+STRTY &&
 			    strmemb(q->n_left->n_ap) ==
 			    strmemb(q->n_right->n_ap)) {
-				p = zapleft(p);
-				p = zapleft(p);
+				p = zapright(p);
+				/* XXX consider replacing with goto zapright; */
+				p = zapright(p);
 			}
 		}
 		/* FALLTHROUGH */
@@ -320,6 +324,7 @@ again:	o = p->n_op;
 
 			q = p->n_left->n_left;
 			nfree(p->n_left->n_right);
+			/* XXX CHECKME: type information of node *p->n_left is lost here... */
 			nfree(p->n_left);
 			p->n_left = q;
 		}
