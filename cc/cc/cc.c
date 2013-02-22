@@ -440,43 +440,17 @@ main(int argc, char *argv[])
 
 #ifdef _WIN32
 	/* have to prefix path early.  -B may override */
-#if 000
-	incdir = win32pathsubst(incdir);
-	altincdir = win32pathsubst(altincdir);
-	libdir = win32pathsubst(libdir);
-#ifdef PCCINCDIR
-	pccincdir = win32pathsubst(pccincdir);
-	pxxincdir = win32pathsubst(pxxincdir);
-#endif
-#endif/*000*/
 #ifdef PCCLIBDIR
 	pcclibdir = win32pathsubst(pcclibdir);
 #endif
+	/* PCCINCDIR is handled as all the include paths
+	 * as part of expand_sysroot()
+	 */
 	passp = win32pathsubst(passp);
 	pass0 = win32pathsubst(pass0);
 	passxx0 = win32pathsubst(passxx0);
 	as = win32pathsubst(as);
 	ld = win32pathsubst(ld);
-#if 000
-#ifdef STARTFILES
-	for (i = 0; startfiles[i] != NULL; i++)
-		startfiles[i] = win32pathsubst(startfiles[i]);
-	for (i = 0; endfiles[i] != NULL; i++)
-		endfiles[i] = win32pathsubst(endfiles[i]);
-#endif
-#ifdef STARTFILES_T
-	for (i = 0; startfiles_T[i] != NULL; i++)
-		startfiles_T[i] = win32pathsubst(startfiles_T[i]);
-	for (i = 0; endfiles_T[i] != NULL; i++)
-		endfiles_T[i] = win32pathsubst(endfiles_T[i]);
-#endif
-#ifdef STARTFILES_S
-	for (i = 0; startfiles_S[i] != NULL; i++)
-		startfiles_S[i] = win32pathsubst(startfiles_S[i]);
-	for (i = 0; endfiles_S[i] != NULL; i++)
-		endfiles_S[i] = win32pathsubst(endfiles_S[i]);
-#endif
-#endif/*000*/
 #endif
 
 	while (--lac) {
