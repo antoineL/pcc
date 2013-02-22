@@ -201,8 +201,11 @@ char *cppmdadd[] = CPPMDADD;
 #ifndef PCCLIBDIR	/* set by autoconf */
 #define PCCLIBDIR	NULL
 #endif
+#ifndef LIBDIR
+#define LIBDIR		"=/usr/lib/"	/* = for sysroot optional subst.*/
+#endif
 #ifndef DEFLIBDIRS	/* default library search paths */
-#define DEFLIBDIRS	{ "/usr/lib/", 0 }
+#define DEFLIBDIRS	{ LIBDIR, 0 }
 #endif
 #ifndef DEFLIBS		/* default libraries included */
 #define	DEFLIBS		{ "-lpcc", "-lc", "-lpcc", 0 }
@@ -847,8 +850,10 @@ main(int argc, char *argv[])
 	strlist_append(&progdirs, LIBEXECDIR);
 	if (pcclibdir)
 		strlist_append(&crtdirs, pcclibdir);
-	for (j = 0; deflibdirs[j]; j++)
+	for (j = 0; deflibdirs[j]; j++) {
 		strlist_append(&crtdirs, deflibdirs[j]);
+		strlist_append(&libdirs, deflibdirs[j]);
+	}
 
 	setup_cpp_flags();
 	setup_ccom_flags();
@@ -1620,8 +1625,8 @@ setup_cpp_flags(void)
 	strlist_append(&sysincdirs, "=" STDINC);
 #ifdef PCCINCDIR
 	if (cxxflag)
-		strlist_append(&sysincdirs, "=" PCCINCDIR "/c++");
-	strlist_append(&sysincdirs, "=" PCCINCDIR);
+		strlist_append(&sysincdirs, PCCINCDIR "/c++");
+	strlist_append(&sysincdirs, PCCINCDIR);
 #endif
 }
 
@@ -1758,6 +1763,7 @@ setup_ld_flags(void)
 {
 	char *b, *e;
 	int i;
+	struct string *s;
 
 	cksetflags(ldflgcheck, &early_linker_flags, 'a');
 	if (Bstatic == 0 && shared == 0 && rflag == 0) {
@@ -1775,9 +1781,9 @@ setup_ld_flags(void)
 		if (pcclibdir)
 			strlist_append(&late_linker_flags,
 			    cat("-L", pcclibdir));
-		for (i = 0; deflibdirs[i]; i++)
+		STRLIST_FOREACH(s, &libdirs)
 			strlist_append(&late_linker_flags,
-			    cat("-L", deflibdirs[i]));
+			    cat("-L", s->value));
 		/* standard libraries */
 		if (pgflag) {
 			for (i = 0; defproflibs[i]; i++)
