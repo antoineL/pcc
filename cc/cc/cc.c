@@ -1548,6 +1548,7 @@ static char *gcppflags[] = {
 	"-D__USER_LABEL_PREFIX__=" USER_LABEL_PREFIX,
 #endif
 #endif
+	NULL
 };
 
 /* These should _not_ be defined here */
@@ -1594,6 +1595,7 @@ static char *fpflags[] = {
 	"-D__LDBL_MIN__=2.2250738585072014e-308",
 #endif
 #endif
+	NULL
 };
 
 
@@ -1610,14 +1612,16 @@ setup_cpp_flags(void)
 		strlist_prepend(&preprocessor_flags, defflags[i]);
 
 	for (i = 0; i < (int)sizeof(gcppflags)/(int)sizeof(char *); i++)
-		strlist_prepend(&preprocessor_flags, gcppflags[i]);
+		if (gcppflags[i])
+			strlist_prepend(&preprocessor_flags, gcppflags[i]);
 	strlist_prepend(&preprocessor_flags, xgnu89 ?
 	    "-D__GNUC_GNU_INLINE__" : "-D__GNUC_STDC_INLINE__");
 
 	cksetflags(cppflgcheck, &preprocessor_flags, 'p');
 
 	for (i = 0; i < (int)sizeof(fpflags)/(int)sizeof(char *); i++)
-		strlist_prepend(&preprocessor_flags, fpflags[i]);
+		if (fpflags[i])
+			strlist_prepend(&preprocessor_flags, fpflags[i]);
 
 	for (i = 0; cppadd[i]; i++)
 		strlist_prepend(&preprocessor_flags, cppadd[i]);
