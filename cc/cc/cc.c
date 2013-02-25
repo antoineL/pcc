@@ -1629,8 +1629,8 @@ setup_cpp_flags(void)
 	strlist_append(&sysincdirs, "=" STDINC);
 #ifdef PCCINCDIR
 	if (cxxflag)
-		strlist_append(&sysincdirs, "=" PCCINCDIR "/c++");
-	strlist_append(&sysincdirs, "=" PCCINCDIR);
+		strlist_append(&sysincdirs, PCCINCDIR "/c++");
+	strlist_append(&sysincdirs, PCCINCDIR);
 #endif
 }
 
