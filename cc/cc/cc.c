@@ -1163,6 +1163,10 @@ preprocess_input(char *input, char *output, int dodep)
 			strlist_append(&args, s->value);
 		}
 	}
+	STRLIST_FOREACH(s, &dirafterdirs) {
+		strlist_append(&args, "-S");
+		strlist_append(&args, s->value);
+	}
 	if (dodep)
 		strlist_append_list(&args, &depflags);
 	strlist_append(&args, input);
