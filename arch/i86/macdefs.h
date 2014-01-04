@@ -331,4 +331,4 @@ int xasmconstregs(char *);
 	c = 'r'; addalledges(&ablock[SI]); addalledges(&ablock[DI]); }
 
 /* target specific attributes */
-#define	ATTR_MI_TARGET	ATTR_I86_FPPOP
+#define	ATTR_MI_TARGET1	ATTR_I86_FPPOP
