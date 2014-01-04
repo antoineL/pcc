@@ -316,13 +316,20 @@ gcc_keyword(char *str, NODE **n)
 struct atax {
 	int typ;
 	char *name;
-} atax[GCC_ATYP_MAX] = {
+} atax[ATTR_P1_MAX] = {
 	CS(ATTR_NONE)		{ 0, NULL },
+	CS(GCC_ATYP_STDCALL)	{ A_0ARG, "stdcall" },
+	CS(GCC_ATYP_CDECL)	{ A_0ARG, "cdecl" },
+#ifdef ATTR_MI_TARGET
+	CS(ATTR_MI_TARGET)	{ 0, NULL },
+#endif
+	CS(ATTR_MI_MAX)		{ 0, NULL },
 	CS(ATTR_COMPLEX)	{ 0, NULL },
 	CS(xxxATTR_BASETYP)	{ 0, NULL },
 	CS(ATTR_QUALTYP)	{ 0, NULL },
-	CS(ATTR_STRUCT)		{ 0, NULL },
 	CS(ATTR_ALIGNED)	{ A_0ARG|A_1ARG, "aligned" },
+	CS(ATTR_STRUCT)		{ 0, NULL },
+	CS(ATTR_P1LABELS)	{ 0, NULL },
 	CS(GCC_ATYP_PACKED)	{ A_0ARG|A_1ARG, "packed" },
 	CS(GCC_ATYP_SECTION)	{ A_1ARG|A1_STR, "section" },
 	CS(GCC_ATYP_TRANSP_UNION) { A_0ARG, "transparent_union" },
@@ -344,8 +351,6 @@ struct atax {
 	CS(GCC_ATYP_CONSTRUCTOR) { A_0ARG, "constructor" },
 	CS(GCC_ATYP_DESTRUCTOR)	{ A_0ARG, "destructor" },
 	CS(GCC_ATYP_VISIBILITY)	{ A_1ARG|A1_STR, "visibility" },
-	CS(GCC_ATYP_STDCALL)	{ A_0ARG, "stdcall" },
-	CS(GCC_ATYP_CDECL)	{ A_0ARG, "cdecl" },
 	CS(GCC_ATYP_WARN_UNUSED_RESULT) { A_0ARG, "warn_unused_result" },
 	CS(GCC_ATYP_USED)	{ A_0ARG, "used" },
 	CS(GCC_ATYP_NO_INSTR_FUN) { A_0ARG, "no_instrument_function" },
@@ -363,6 +368,12 @@ struct atax {
 	CS(GCC_ATYP_FASTCALL)	{ A_0ARG, "fastcall" },
 
 	CS(GCC_ATYP_BOUNDED)	{ A_3ARG|A_MANY|A1_NAME, "bounded" },
+
+	CS(GCC_ATYP_MAX)	{ 0, NULL },
+#ifdef ATTR_P1_TARGET
+	CS(ATTR_P1_TARGET)	{ 0, NULL },
+#endif
+	CS(ATTR_P1_MAX)		{ 0, NULL },
 };
 
 #if SZPOINT(CHAR) == SZLONGLONG
