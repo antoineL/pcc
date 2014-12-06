@@ -325,7 +325,7 @@ ulltofp(NODE *p)
 {
 	int jmplab;
 
-#if defined(ELFABI) || defined(PECOFFABI)
+#if ! defined(MACHOABI)
 	static int loadlab;
 
 	if (loadlab == 0) {
@@ -345,10 +345,15 @@ ulltofp(NODE *p)
 
 #if defined(ELFABI)
 	printf("	fldt " LABFMT "%s\n", loadlab, kflag ? "@GOTOFF" : "");
+#elif defined(AOUTABI)
+	printf("	fldt " LABFMT "%s\n", loadlab, "");
 #elif defined(MACHOABI)
 	printf("\tpushl 0x5f800000\n");
 	printf("\tfadds (%%esp)\n");
 	printf("\taddl $4,%%esp\n");
+#elif defined(PECOFFABI)
+/* XXX review! Not OK for DLL */
+	printf("	fldt " LABFMT "%s\n", loadlab, /*kflag ? "@GOTOFF" :*/ "");
 #else
 #error incomplete implementation
 #endif
