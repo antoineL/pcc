@@ -1056,7 +1056,7 @@ defzero(struct symtab *sp)
 		else
 			printf("\t.comm  " LABFMT ",0%o,%d\n", sp->soffset, off, al);
 	}
-#else
+#elif defined(ELFABI)
 	if (attr_find(sp->sap, GCC_ATYP_WEAKREF) != NULL)
 		return;
 	if (sp->sclass == STATIC) {
@@ -1069,6 +1069,16 @@ defzero(struct symtab *sp)
 		printf("\t.comm %s,0%o,%d\n", name, off, al);
 	else
 		printf("\t.comm  " LABFMT ",0%o,%d\n", sp->soffset, off, al);
+#else
+	/* XXX Does it apply to PE/COFF or a.out? */
+	if (attr_find(sp->sap, GCC_ATYP_WEAKREF) != NULL)
+		return;
+	if (sp->slevel == 0)
+		printf("\t.%scomm %s,0%o\n",
+			sp->sclass == STATIC ? "l" : "", name, off);
+	else
+		printf("\t.%scomm  " LABFMT ",0%o\n", 
+			sp->sclass == STATIC ? "l" : "", sp->soffset, off);
 #endif
 }
 
