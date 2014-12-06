@@ -19,8 +19,8 @@
 #define GCRT0		"gcrt2.o"	/* in _addition_ to either crt2.o or dllcrt2.o */
 #define	CRTBEGIN_S	"crtbegin.o"
 #define	CRTEND_S	"crtend.o"
-#define CRTI		0
-#define CRTN		0
+/*#define CRTI		0*/
+/*#define CRTN		0*/
 /* MingW cannot do -static linking */
 
 #define WIN32_LIBC	"-lmsvcrt"
