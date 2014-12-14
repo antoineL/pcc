@@ -363,13 +363,13 @@ ulltofp(NODE *p)
 {
 	int jmplab;
 
-#if defined(ELFABI) || defined(PECOFFABI)
+#if ! defined(MACHOABI)
 	static int loadlab;
 
 	if (loadlab == 0) {
 		loadlab = getlab2();
 		expand(p, 0, "	.data\n");
-		printf(LABFMT ":	.long 0,0x80000000,0x403f\n", loadlab);
+		printf(LABFMT ":	.long 0x5f800000\n", loadlab);
 		expand(p, 0, "	.text\n");
 	}
 #endif
@@ -382,7 +382,9 @@ ulltofp(NODE *p)
 	printf("	jge " LABFMT "\n", jmplab);
 
 #if defined(ELFABI)
-	printf("	fldt " LABFMT "%s\n", loadlab, kflag ? "@GOTOFF" : "");
+	printf("	fadds " LABFMT "%s\n", loadlab, kflag ? "@GOTOFF" : "");
+#elif defined(AOUTABI) || defined(PECOFFABI)
+	printf("	fadds " LABFMT "%s\n", loadlab, "");
 #elif defined(MACHOABI)
 	printf("\tpushl 0x5f800000\n");
 	printf("\tfadds (%%esp)\n");
@@ -391,7 +393,6 @@ ulltofp(NODE *p)
 #error incomplete implementation
 #endif
 
-	printf("	faddp %%st,%%st(1)\n");
 	printf(LABFMT ":\n", jmplab);
 }
 
