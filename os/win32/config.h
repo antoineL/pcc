@@ -62,7 +62,9 @@
 #define HAVE_MEMORY_H 1
 /* #define HAVE_MKSTEMP 1 */
 
-#ifndef __MSC__
+#if defined(_MSC_VER) || (_MSC_VER >= 1600)
+#undef HAVE_STDINT_H
+#elif !defined(__MSC__)
 #define HAVE_STDINT_H 1
 #endif
 
