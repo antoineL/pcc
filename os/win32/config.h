@@ -1,10 +1,18 @@
 /*
  * Config file for visual studio build
  */
-#define PREPROCESSOR "%PCCDIR%\\libexec\\cpp.exe"
-#define COMPILER "%PCCDIR%\\libexec\\ccom.exe"
+#ifndef LIBEXECDIR
+#define LIBEXECDIR "%PCCDIR%\\libexec\\"
+#endif
+#define PREPROCESSOR "cpp.exe"
+#define COMPILER "ccom.exe"
+#define CXXCOMPILER "cxxcom.exe"
 
 #define USE_YASM
+#define PCC_MAJOR 1
+#define PCC_MINOR 2
+#define PCC_MINORMINOR 0
+#define PCCVERSION	"1.2.0"
 
 #ifdef USE_YASM
 #define ASSEMBLER "yasm.exe"
@@ -25,11 +33,25 @@
 #define STDINC "%PCCDIR%\\include\\"
 #define LIBDIR "%PCCDIR%\\lib\\"
 #define INCLUDEDIR STDINC
-#define PCCLIBDIR "%PCCDIR%\\lib\\i386-win32\\1.1.0\\lib\\"
-#define PCCINCDIR "%PCCDIR%\\lib\\i386-win32\\1.1.0\\include\\"
+#define PCCLIBDIR "%PCCDIR%\\lib\\i386-win32\\" PCCVERSION "\\lib\\"
+#define PCCINCDIR "%PCCDIR%\\lib\\i386-win32\\" PCCVERSION "\\include\\"
+
+#ifdef _MSC_VER
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+#ifndef _CRT_SECURE_NO_DEPRECATE
+#define _CRT_SECURE_NO_DEPRECATE
+#endif
+#ifndef _CRT_NONSTDC_NO_DEPRECATE
+#define _CRT_NONSTDC_NO_DEPRECATE
+#endif
+#endif
 
 #if !defined(vsnprintf)
+#if defined(_MSC_VER) && _MSC_VER >= 1200 && _MSC_VER < 1500
 #define vsnprintf _vsnprintf
+#endif
 #endif
 /* windows defines (u)uintptr_t in stddef.h, not inttypes.h */
 #include <stddef.h>
@@ -47,7 +69,9 @@
 #define HAVE_MEMORY_H 1
 /* #define HAVE_MKSTEMP 1 */
 
-#ifndef __MSC__
+#if defined(_MSC_VER) || (_MSC_VER >= 1600)
+#undef HAVE_STDINT_H
+#elif !defined(__MSC__)
 #define HAVE_STDINT_H 1
 #endif
 
@@ -65,15 +89,12 @@
 #define HOST_LITTLE_ENDIAN
 
 #define PACKAGE_NAME "pcc"
-#define PACKAGE_STRING "pcc 1.1.0"
+#define PACKAGE_STRING "pcc " PCCVERSION 
 #define PACKAGE_TARNAME "pcc"
-#define PACKAGE_VERSION "1.1.0"
-#define PCC_MAJOR 1
-#define PCC_MINOR 1
-#define PCC_MINORMINOR 0
+#define PACKAGE_VERSION PCCVERSION
 #define STDC_HEADERS 1
 #define TARGET_LITTLE_ENDIAN 1
-#define VERSSTR "pcc 1.1.0 for win32, gmcgarry@pcc.ludd.ltu.se"
+#define VERSSTR "pcc " PCCVERSION " for win32, gmcgarry@pcc.ludd.ltu.se"
 #define WCHAR_SIZE 2
 #define WCHAR_TYPE USHORT
 #define YYTEXT_POINTER 1
