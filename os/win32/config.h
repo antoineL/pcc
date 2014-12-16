@@ -29,6 +29,18 @@
 #define PCCLIBDIR "%PCCDIR%\\lib\\i386-win32\\1.1.0\\lib\\"
 #define PCCINCDIR "%PCCDIR%\\lib\\i386-win32\\1.1.0\\include\\"
 
+#ifdef _MSC_VER
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+#ifndef _CRT_SECURE_NO_DEPRECATE
+#define _CRT_SECURE_NO_DEPRECATE
+#endif
+#ifndef _CRT_NONSTDC_NO_DEPRECATE
+#define _CRT_NONSTDC_NO_DEPRECATE
+#endif
+#endif
+
 #if !defined(vsnprintf)
 #if defined(_MSC_VER) && _MSC_VER >= 1200 && _MSC_VER < 1500
 #define vsnprintf _vsnprintf
