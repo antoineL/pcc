@@ -9,6 +9,10 @@
 #define CXXCOMPILER "cxxcom.exe"
 
 #define USE_YASM
+#define PCC_MAJOR 1
+#define PCC_MINOR 2
+#define PCC_MINORMINOR 0
+#define PCCVERSION	"1.2.0"
 
 #ifdef USE_YASM
 #define ASSEMBLER "yasm.exe"
@@ -29,8 +33,8 @@
 #define STDINC "%PCCDIR%\\include\\"
 #define LIBDIR "%PCCDIR%\\lib\\"
 #define INCLUDEDIR STDINC
-#define PCCLIBDIR "%PCCDIR%\\lib\\i386-win32\\1.1.0\\lib\\"
-#define PCCINCDIR "%PCCDIR%\\lib\\i386-win32\\1.1.0\\include\\"
+#define PCCLIBDIR "%PCCDIR%\\lib\\i386-win32\\" PCCVERSION "\\lib\\"
+#define PCCINCDIR "%PCCDIR%\\lib\\i386-win32\\" PCCVERSION "\\include\\"
 
 #ifdef _MSC_VER
 #ifndef _CRT_SECURE_NO_WARNINGS
@@ -85,15 +89,12 @@
 #define HOST_LITTLE_ENDIAN
 
 #define PACKAGE_NAME "pcc"
-#define PACKAGE_STRING "pcc 1.1.0"
+#define PACKAGE_STRING "pcc " PCCVERSION 
 #define PACKAGE_TARNAME "pcc"
-#define PACKAGE_VERSION "1.1.0"
-#define PCC_MAJOR 1
-#define PCC_MINOR 1
-#define PCC_MINORMINOR 0
+#define PACKAGE_VERSION PCCVERSION
 #define STDC_HEADERS 1
 #define TARGET_LITTLE_ENDIAN 1
-#define VERSSTR "pcc 1.1.0 for win32, gmcgarry@pcc.ludd.ltu.se"
+#define VERSSTR "pcc " PCCVERSION " for win32, gmcgarry@pcc.ludd.ltu.se"
 #define WCHAR_SIZE 2
 #define WCHAR_TYPE USHORT
 #define YYTEXT_POINTER 1
