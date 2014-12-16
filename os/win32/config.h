@@ -1,9 +1,12 @@
 /*
  * Config file for visual studio build
  */
-#define PREPROCESSOR "%PCCDIR%\\libexec\\cpp.exe"
-#define COMPILER "%PCCDIR%\\libexec\\ccom.exe"
-#define CXXCOMPILER "%PCCDIR%\\libexec\\cxxcom.exe"
+#ifndef LIBEXECDIR
+#define LIBEXECDIR "%PCCDIR%\\libexec\\"
+#endif
+#define PREPROCESSOR "cpp.exe"
+#define COMPILER "ccom.exe"
+#define CXXCOMPILER "cxxcom.exe"
 
 #define USE_YASM
 
