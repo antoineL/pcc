@@ -1837,6 +1837,7 @@ setup_ld_flags(void)
 {
 	char *b, *e;
 	int i;
+	struct string *s;
 
 	cksetflags(ldflgcheck, &early_linker_flags, 'a');
 	if (Bstatic == 0 && shared == 0 && rflag == 0) {
@@ -1847,6 +1848,12 @@ setup_ld_flags(void)
 	}
 	if (shared == 0 && rflag)
 		strlist_append(&early_linker_flags, "-r");
+#ifdef STARTLABEL_S
+	if (shared == 1) {
+		strlist_append(&early_linker_flags, "-e");
+		strlist_append(&early_linker_flags, STARTLABEL_S);
+	}
+#endif
 	if (sysroot && *sysroot)
 		strlist_append(&early_linker_flags, cat("--sysroot=", sysroot));
 	if (!nostdlib) {
@@ -1888,6 +1895,7 @@ setup_ld_flags(void)
 			strap(&middle_linker_flags, &crtdirs, CRTI, 'p');
 		if (CRTN[0])
 			strap(&late_linker_flags, &crtdirs, CRTN, 'a');
+#ifndef os_win32
 		if (shared == 0) {
 			if (pgflag)
 				b = GCRT0;
@@ -1899,6 +1907,20 @@ setup_ld_flags(void)
 				b = CRT0;
 			strap(&middle_linker_flags, &crtdirs, b, 'p');
 		}
+#else
+		/*
+		 * On Win32 Cygwin/MinGW runtimes, the profiling code gcrtN.o
+		 * comes in addition to crtN.o; and there is dllcrtN.o
+		 */
+		if (pgflag)
+			strap(&middle_linker_flags, &crtdirs, GCRT0, 'p');
+		if (shared == 1)
+			b = CRT0_S;	/* dllcrtN.o */
+		/* Nota: pieflag is meaningless on Win32, always true */
+		else
+			b = CRT0;
+		strap(&middle_linker_flags, &crtdirs, b, 'p');
+#endif
 	}
 }
 
