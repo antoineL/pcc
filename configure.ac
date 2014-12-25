@@ -539,24 +539,6 @@ else
         AC_SUBST(CC_FOR_BUILD)
 fi
 
-AC_CACHE_CHECK([for C99 printf size specifiers], ac_cv_have_c99_format, [
-  AC_RUN_IFELSE([
-    AC_LANG_PROGRAM([AC_INCLUDES_DEFAULT], [[
-      char buf[64];
-      if (sprintf(buf, "%lld%hhd%jd%zd%td", (long long int)1, (char)2, (intmax_t)3, (size_t)4, (ptrdiff_t)5) != 5)
-        exit(1);
-      else if (strcmp(buf, "12345"))
-        exit(2);
-      ]])],
-    [ ac_cv_have_c99_format=yes ],
-    [ ac_cv_have_c99_format=no ],
-    [ ac_cv_have_c99_format=yes ])
-])
-if test $ac_cv_have_c99_format = yes; then
-  AC_DEFINE([HAVE_C99_FORMAT], 1,
-    [Define to 1 if printf supports C99 size specifiers])
-fi
-
 # Byteorder of host
 AC_C_BIGENDIAN([AC_DEFINE(HOST_BIG_ENDIAN, 1, [Define if host is BIG endian])],
 	[AC_DEFINE(HOST_LITTLE_ENDIAN, 1, [Define if host is LITTLE endian])],
