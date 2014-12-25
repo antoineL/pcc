@@ -4148,52 +4148,6 @@ fi
 done
 
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for C99 printf size specifiers" >&5
-$as_echo_n "checking for C99 printf size specifiers... " >&6; }
-if ${ac_cv_have_c99_format+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  if test "$cross_compiling" = yes; then :
-   ac_cv_have_c99_format=yes
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-    $ac_includes_default
-int
-main ()
-{
-
-      char buf[64];
-      if (sprintf(buf, "%lld%hhd%jd%zd%td", (long long int)1, (char)2, (intmax_t)3, (size_t)4, (ptrdiff_t)5) != 5)
-        exit(1);
-      else if (strcmp(buf, "12345"))
-        exit(2);
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_run "$LINENO"; then :
-   ac_cv_have_c99_format=yes
-else
-   ac_cv_have_c99_format=no
-fi
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
-  conftest.$ac_objext conftest.beam conftest.$ac_ext
-fi
-
-
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_have_c99_format" >&5
-$as_echo "$ac_cv_have_c99_format" >&6; }
-if test $ac_cv_have_c99_format = yes; then
-
-$as_echo "#define HAVE_C99_FORMAT 1" >>confdefs.h
-
-fi
-
 # Byteorder of host
  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether byte ordering is bigendian" >&5
 $as_echo_n "checking whether byte ordering is bigendian... " >&6; }
