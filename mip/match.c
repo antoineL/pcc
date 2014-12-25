@@ -62,10 +62,6 @@
 
 #include "pass2.h"
 
-#ifdef HAVE_STRINGS_H
-#include <strings.h>
-#endif
-
 void setclass(int tmp, int class);
 int getclass(int tmp);
 
