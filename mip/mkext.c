@@ -6,10 +6,6 @@
 #include "pass2.h"
 #include <stdlib.h>
 
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
-
 int chkop[DSIZE];
 
 void mktables(void);
