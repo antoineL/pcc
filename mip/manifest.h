@@ -41,7 +41,9 @@
 #include "config.h"
 #include "macdefs.h"
 #include "node.h"
+#ifndef MKEXT
 #include "compat.h"
+#endif
 
 /*
  * Node types
