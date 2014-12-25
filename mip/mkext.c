@@ -10,16 +10,6 @@
 #include <string.h>
 #endif
 
-#ifdef HAVE_C99_FORMAT
-#define FMTdPTR "%td"
-#else
-#if defined(_WIN64) || defined(LP64)
-#define FMTdPTR "%ld"
-#else
-#define FMTdPTR "%d"
-#endif
-#endif
-
 int chkop[DSIZE];
 
 void mktables(void);
@@ -103,7 +93,7 @@ compl(struct optab *q, char *str)
 		case OPLTYPE:	s = "OPLTYPE";	break;
 		}
 
-	printf("table entry " FMTdPTR ", op %s: %s\n", q - table, s, str);
+	printf("table entry %ld, op %s: %s\n", (long)(q - table), s, str);
 }
 
 static int
@@ -364,11 +354,7 @@ if (bitsz == 64) {
 	if (greg > mx) mx = greg;
 	if (mx > (int)(sizeof(int)*8)-1) {
 		printf("too many regs in a class, use two classes instead\n");
-#ifdef HAVE_C99_FORMAT
-		printf("%d > %zu\n", mx, (sizeof(int)*8)-1);
-#else
 		printf("%d > %d\n", mx, (int)(sizeof(int)*8)-1);
-#endif
 		rval++;
 	}
 	fprintf(fc, "static int rmap[NUMCLASS][%d] = {\n", mx);
@@ -444,7 +430,7 @@ mktables(void)
 		for (op = table; op->op != FREE; op++) {
 			if (op->op < OPSIMP) {
 				if (op->op == i) {
-					P((fc, FMTdPTR ", ", op - table));
+					P((fc, "%ld, ", (long)(op - table)));
 					curalen++;
 				}
 			} else {
@@ -452,12 +438,11 @@ mktables(void)
 				if ((opmtemp=mamask[op->op - OPSIMP])&SPFLG) {
 					if (i==NAME || i==ICON || i==TEMP ||
 					    i==OREG || i == REG || i == FCON) {
-						P((fc, FMTdPTR ", ",
-						    op - table));
+						P((fc, "%ld, ", (long)(op - table)));
 						curalen++;
 					}
 				} else if ((dope[i]&(opmtemp|ASGFLG))==opmtemp){
-					P((fc, FMTdPTR ", ", op - table));
+					P((fc, "%ld, ", (long)(op - table)));
 					curalen++;
 				}
 			}
