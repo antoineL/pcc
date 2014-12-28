@@ -1215,10 +1215,73 @@ fixdef(struct symtab *sp)
 #endif
 		constructor = destructor = 0;
 	}
+#ifdef GCC_COMPAT
+	if (attr_find(sp->sap, GCC_ATYP_STDCALL) != NULL) {
+		sp->sflags |= SSTDCALL;
+	}
+#endif
 #ifdef PECOFFABI
 	if (dllindirect && (sp->sclass != PARAM)) {
 		sp->sflags |= SDLLINDIRECT;
 		dllindirect = 0;
+	}
+	/*
+	 *  Postfix external functions with the arguments size.
+	 */
+	if ((sp->sflags & SSTDCALL) && (sp->soname == NULL)) {
+		/* XXX FIXME: only EXTERN? skip PARAM? */
+		if (!ISFTN(sp->stype)) {
+			werror("unsupported stdcall attribute on non-function '%s'", sp->sname);
+		}
+		else if (!sp->sdf || !sp->sdf->dfun) {
+			werror("unsupported stdcall attribute on prototype-less '%s'", sp->sname);
+		}
+		else {
+			int size = 0;
+			union arglist *al;
+			char buf[256];
+			TWORD t;
+
+			for (al = sp->sdf->dfun; al->type != TNULL; al++) {
+				t = al->type;
+				if (t == TELLIPSIS) {
+					/*
+					 * Varyadic are reclassified as cdecl
+					 * (the only way to call them),
+					 * even if declared as stdcall.
+					 * Undo all.
+					 */
+					sp->sflags &= ~SSTDCALL;
+					/* XXX FIXME: remove attribute if set up */
+					goto name_mangled;
+				}
+				if (ISSOU(t)) {
+					al++;
+					size += tsize(t, 0, al->sap);
+				}
+				else {
+					/* XXX FIXME: _Imaginary, _Complex, etc. */
+					size += szty(t) * SZINT / SZCHAR;
+					while (t > BTMASK) {
+						if (ISARY(t) || ISFTN(t))
+							al++;
+						t = DECREF(t);
+					}
+				}
+			}
+			/*
+			 * mangle name directly in symbol table.
+			 */
+			size = snprintf(buf, 256, "_%s@%d", sp->sname, size) + 1;
+			sp->soname = IALLOC(size);
+			strlcpy(sp->soname, buf, size);
+#ifdef PCC_DEBUG
+			if (ddebug > 2*0)
+				printf("Mangled name of '%s' to '%s'\n",
+				    sp->sname, sp->soname);
+#endif
+name_mangled:		;
+		}
 	}
 #endif
 }
