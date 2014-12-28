@@ -358,20 +358,20 @@ bfcode(struct symtab **sp, int cnt)
 	}
 
         if (cftnsp->sflags & SSTDCALL) {
-#ifdef PECOFFABI
-                char buf[256];
-                char *name;
-#endif
 		/* XXX interaction STDCALL and struct return? */
 		argstacksize += (argbase - ARGINIT)/SZCHAR;
 #ifdef PECOFFABI
                 /*
                  * mangle name in symbol table as a callee.
                  */
-                if ((name = cftnsp->soname) == NULL)
+		if (cftnsp->soname == NULL) {
+	                char buf[256];
+		        char *name;
+
                         name = exname(cftnsp->sname);
-                snprintf(buf, 256, "%s@%d", name, argstacksize);
-                cftnsp->soname = addname(buf);
+			snprintf(buf, 256, "%s@%d", name, argstacksize);
+			cftnsp->soname = addname(buf);
+		}
 #endif
         }
 

@@ -811,8 +811,6 @@ fixnames(NODE *p, void *arg)
 #endif
 }
 
-static void mangle(NODE *p);
-
 void
 myp2tree(NODE *p)
 {
@@ -820,8 +818,6 @@ myp2tree(NODE *p)
 
 	if (kflag)
 		fixnames(p, 0);
-
-	mangle(p);
 
 	if ((p->n_op == STCALL || p->n_op == USTCALL) && 
 	    attr_find(p->n_ap, ATTR_COMPLEX) &&
@@ -1220,62 +1216,69 @@ fixdef(struct symtab *sp)
 		sp->sflags |= SDLLINDIRECT;
 		dllindirect = 0;
 	}
-#endif
-}
-
-/*
- *  Postfix external functions with the arguments size.
- */
-static void
-mangle(NODE *p)
-{
-	NODE *l;
-
-	if (p->n_op != CALL && p->n_op != STCALL &&
-	    p->n_op != UCALL && p->n_op != USTCALL)
-		return;
-
-	l = p->n_left;
-	while (cdope(l->n_op) & CALLFLG)
-		l = l->n_left;
-	if (l->n_op == TEMP)
-		return;
-	if (l->n_op == ADDROF)
-		l = l->n_left;
-	if (l->n_sp == NULL)
-		return;
 #ifdef GCC_COMPAT
-	if (attr_find(l->n_sp->sap, GCC_ATYP_STDCALL) != NULL)
-		l->n_sp->sflags |= SSTDCALL;
-#endif
-#ifdef PECOFFABI
-	if (l->n_sp->sflags & SSTDCALL) {
-		if (strchr(l->n_name, '@') == NULL) {
+	/*
+	 *  Postfix external functions with the arguments size.
+	 */
+	if (attr_find(sp->sap, GCC_ATYP_STDCALL) != NULL
+	    && (sp->soname == NULL)) {
+		if (!ISFTN(sp->stype)) {
+			werror("unsupported stdcall attribute on non-function '%s'", sp->sname);
+		}
+		else if (!sp->sdf || !sp->sdf->dfun) {
+			werror("unsupported stdcall attribute on prototype-less '%s'", sp->sname);
+		}
+		else {
 			int size = 0;
+			union arglist *al;
 			char buf[256];
-			NODE *r;
 			TWORD t;
 
-			if (p->n_op == CALL || p->n_op == STCALL) {
-				for (r = p->n_right;	
-				    r->n_op == CM; r = r->n_left) {
-					t = r->n_type;
-					if (t == STRTY || t == UNIONTY)
-						size += tsize(t, r->n_df, r->n_ap);
-					else
-						size += szty(t) * SZINT / SZCHAR;
+			for (al = sp->sdf->dfun; al->type != TNULL; al++) {
+				t = al->type;
+				if (t == TELLIPSIS) {
+					struct attr *ap;
+					/*
+					 * Varyadic are reclassified as cdecl
+					 * (the only way to call them),
+					 * even if declared as stdcall.
+					 * Undo all.
+					 */
+					sp->sflags &= ~SSTDCALL; /* XXX still in use? */
+					ap = attr_find(sp->sap, GCC_ATYP_STDCALL);
+					ap->atype = GCC_ATYP_CDECL;
+					/* XXX FIXME: remove attribute of neighbour nodes */
+					goto name_mangled;
 				}
-				t = r->n_type;
-				if (t == STRTY || t == UNIONTY)
-					size += tsize(t, r->n_df, r->n_ap);
-				else
+				if (ISSOU(t)) {
+					al++;
+					size += tsize(t, 0, al->sap);
+				}
+				else {
+					/* XXX FIXME: _Imaginary, _Complex, etc. */
 					size += szty(t) * SZINT / SZCHAR;
+					while (t > BTMASK) {
+						if (ISARY(t) || ISFTN(t))
+							al++;
+						t = DECREF(t);
+					}
+				}
 			}
-			size = snprintf(buf, 256, "%s@%d", l->n_name, size) + 1;
-	        	l->n_name = IALLOC(size);
-			memcpy(l->n_name, buf, size);
+			/*
+			 * mangle name directly in symbol table.
+			 */
+			size = snprintf(buf, 256, "_%s@%d", sp->sname, size) + 1;
+			sp->soname = IALLOC(size);
+			strlcpy(sp->soname, buf, size);
+#ifdef PCC_DEBUG
+			if (ddebug > 2)
+				printf("Mangled name of __stdcall '%s' to '%s'\n",
+				    sp->sname, sp->soname);
+#endif
+name_mangled:		;
 		}
 	}
+#endif
 #endif
 }
 
