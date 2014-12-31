@@ -205,9 +205,9 @@ char *cppmdadd[] = CPPMDADD;
 #endif
 #ifndef DEFLIBDIRS	/* default library search paths */
 #ifdef MULTIARCH_PATH
-#define DEFLIBDIRS	{ LIBDIR, LIBDIR MULTIARCH_PATH "/", 0 }
+#define DEFLIBDIRS	{ "=" LIBDIR, "=" LIBDIR MULTIARCH_PATH "/", 0 }
 #else
-#define DEFLIBDIRS	{ LIBDIR, 0 }
+#define DEFLIBDIRS	{ "=" LIBDIR, 0 }
 #endif
 #endif
 #ifndef DEFLIBS		/* default libraries included */
@@ -459,40 +459,6 @@ main(int argc, char *argv[])
 	PCC_EARLY_SETUP
 #endif
 
-#ifdef _WIN32
-	/* have to prefix path early.  -B may override */
-	incdir = win32pathsubst(incdir);
-	altincdir = win32pathsubst(altincdir);
-	libdir = win32pathsubst(libdir);
-#ifdef PCCINCDIR
-	pccincdir = win32pathsubst(pccincdir);
-	pxxincdir = win32pathsubst(pxxincdir);
-#endif
-#ifdef PCCLIBDIR
-	pcclibdir = win32pathsubst(pcclibdir);
-#endif
-	passp = win32pathsubst(passp);
-	pass0 = win32pathsubst(pass0);
-#ifdef STARTFILES
-	for (i = 0; startfiles[i] != NULL; i++)
-		startfiles[i] = win32pathsubst(startfiles[i]);
-	for (i = 0; endfiles[i] != NULL; i++)
-		endfiles[i] = win32pathsubst(endfiles[i]);
-#endif
-#ifdef STARTFILES_T
-	for (i = 0; startfiles_T[i] != NULL; i++)
-		startfiles_T[i] = win32pathsubst(startfiles_T[i]);
-	for (i = 0; endfiles_T[i] != NULL; i++)
-		endfiles_T[i] = win32pathsubst(endfiles_T[i]);
-#endif
-#ifdef STARTFILES_S
-	for (i = 0; startfiles_S[i] != NULL; i++)
-		startfiles_S[i] = win32pathsubst(startfiles_S[i]);
-	for (i = 0; endfiles_S[i] != NULL; i++)
-		endfiles_S[i] = win32pathsubst(endfiles_S[i]);
-#endif
-#endif
-
 	while (--lac) {
 		++lav;
 		argp = *lav;
@@ -545,6 +511,7 @@ main(int argc, char *argv[])
 
 		case 'B': /* other search paths for binaries */
 			t = nxtopt("-B");
+			strlist_append(&user_sysincdirs, cat(t, "/include"));
 			strlist_append(&crtdirs, t);
 			strlist_append(&libdirs, t);
 			strlist_append(&progdirs, t);
@@ -923,13 +890,15 @@ main(int argc, char *argv[])
 		signal(SIGTERM, idexit);
 
 	/* after arg parsing */
+	/* Note: not affected by expand_sysroot() */
 	strlist_append(&progdirs, LIBEXECDIR);
-	if (pcclibdir)
-		strlist_append(&crtdirs, pcclibdir);
+	if (pcclibdir) {
+		strlist_append(&crtdirs, cat("=", pcclibdir));
+		strlist_append(&libdirs, cat("=", pcclibdir));
+	}
 	for (j = 0; deflibdirs[j]; j++) {
-		if (sysroot)
-			deflibdirs[j] = cat(sysroot, deflibdirs[j]);
 		strlist_append(&crtdirs, deflibdirs[j]);
+		strlist_append(&libdirs, deflibdirs[j]);
 	}
 
 	setup_cpp_flags();
@@ -1482,6 +1451,9 @@ expand_sysroot(void)
 
 	for (i = 0; lists[i] != NULL; ++i) {
 		STRLIST_FOREACH(s, lists[i]) {
+#ifdef _WIN32
+			s->value = win32pathsubst(s->value);
+#endif
 			if (s->value[0] != '=')
 				continue;
 			sysroot_len = strlen(sysroots[i]);
@@ -1889,6 +1861,7 @@ setup_ld_flags(void)
 {
 	char *b, *e;
 	int i;
+	struct string *s;
 
 #ifdef PCC_SETUP_LD_ARGS
 	PCC_SETUP_LD_ARGS
@@ -1915,12 +1888,9 @@ setup_ld_flags(void)
 		strlist_append(&early_linker_flags, cat("--sysroot=", sysroot));
 	if (!nostdlib) {
 		/* library search paths */
-		if (pcclibdir)
-			strlist_append(&late_linker_flags,
-			    cat("-L", pcclibdir));
-		for (i = 0; deflibdirs[i]; i++)
-			strlist_append(&late_linker_flags,
-			    cat("-L", deflibdirs[i]));
+		STRLIST_FOREACH(s, &libdirs)
+ 			strlist_append(&late_linker_flags,
+			    cat("-L", s->value));
 		/* standard libraries */
 		if (pgflag) {
 			for (i = 0; defproflibs[i]; i++)
