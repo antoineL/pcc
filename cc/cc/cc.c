@@ -101,14 +101,19 @@
 #endif
 #include <assert.h>
 
-#ifdef  _WIN32
+#if defined(WIN32) && !defined(_WIN32)
+#define _WIN32 WIN32
+#endif
+#ifdef _WIN32
 #include <windows.h>
 #include <process.h>
 #include <io.h>
+#ifndef F_OK
 #define F_OK	0x00
 #define R_OK	0x04
 #define W_OK	0x02
-#define X_OK	R_OK
+#define X_OK	0x01
+#endif
 #endif
 
 #include "compat.h"
@@ -446,8 +451,16 @@ main(int argc, char *argv[])
 
 	if ((t = strrchr(argv[0], '/')))
 		t++;
+#ifdef _WIN32
+	else if ((t = strrchr(argv[0], '\\')))
+		t++;
+#endif
 	else
 		t = argv[0];
+#ifdef _WIN32
+	if ((u = strrchr(t, '.')) && strcmp(u, ".exe") == 0)
+		*u = '\0';
+#endif
 
 	if (match(t, "p++")) {
 		cxxflag = 1;
@@ -1105,18 +1118,33 @@ find_file(const char *file, struct strlist *path, int mode)
 	char *f;
 	size_t lf, lp;
 	int need_sep;
+#ifdef _WIN32
+	int exe_ext;
+#else
+#define exe_ext 0
+#endif
 
 	lf = strlen(file);
 	STRLIST_FOREACH(s, path) {
 		lp = strlen(s->value);
 		need_sep = (lp && s->value[lp - 1] != '/') ? 1 : 0;
-		f = xmalloc(lp + lf + need_sep + 1);
+#ifdef _WIN32
+		exe_ext = mode == X_OK ? (int)strlen(".exe") : 0;
+		mode &= ~X_OK;
+#endif
+		f = xmalloc(lp + lf + need_sep + exe_ext + 1);
 		memcpy(f, s->value, lp);
 		if (need_sep)
 			f[lp] = '/';
 		memcpy(f + lp + need_sep, file, lf + 1);
 		if (access(f, mode) == 0)
 			return f;
+#ifdef _WIN32
+		if (exe_ext)
+			memcpy(f + lp + need_sep + lf, ".exe", exe_ext + 1);
+		if (access(f, mode) == 0)
+			return f;
+#endif
 		free(f);
 	}
 	return xstrdup(file);
@@ -1770,6 +1798,7 @@ static int one = 1;
 
 struct flgcheck asflgcheck[] = {
 #if defined(USE_YASM)
+	{ &one, 1, "-w" },
 	{ &one, 1, "-p" },
 	{ &one, 1, "gnu" },
 	{ &one, 1, "-f" },
