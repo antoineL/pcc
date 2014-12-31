@@ -45,6 +45,8 @@
 #include <string.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#elif defined _WIN32
+#include <io.h>
 #endif
 #include <fcntl.h>
 
