@@ -33,6 +33,8 @@
 #endif
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
+#else
+#include "stdint_substitute.h"
 #endif
 #include <stdlib.h>
 
