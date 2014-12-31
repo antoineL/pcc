@@ -1956,6 +1956,21 @@ savstr(const usch *str)
 	return rv;
 }
 
+usch *
+savescstr(const usch *str)
+{
+	usch *rv = stringbuf;
+
+	do {
+		if (stringbuf + 1 >= &sbf[SBSIZE])
+			error("out of macro space!");
+		if (*str == '"' || *str == '\\')
+			*stringbuf++ = '\\';
+	} while ((*stringbuf++ = *str++));
+	stringbuf--;
+	return rv;
+}
+
 void
 unpstr(const usch *c)
 {
@@ -2025,12 +2040,17 @@ num2str(int num)
 static void
 vsheap(const char *fmt, va_list ap)
 {
+	int instr = 0;
+
 	for (; *fmt; fmt++) {
 		if (*fmt == '%') {
 			fmt++;
 			switch (*fmt) {
 			case 's':
-				savstr(va_arg(ap, usch *));
+				if (instr)
+					savescstr(va_arg(ap, usch *));
+				else
+					savstr(va_arg(ap, usch *));
 				break;
 			case 'd':
 				num2str(va_arg(ap, int));
@@ -2041,8 +2061,10 @@ vsheap(const char *fmt, va_list ap)
 			default:
 				error("bad sheap");
 			}
-		} else
+		} else {
+			if (*fmt == '"') instr ^= 1;
 			savch(*fmt);
+		}
 	}
 	*stringbuf = 0;
 }
