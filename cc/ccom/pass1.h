@@ -40,6 +40,8 @@
 #include <string.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
+#else
+#include "stdint_substitute.h"
 #endif
 
 #ifndef MKEXT
