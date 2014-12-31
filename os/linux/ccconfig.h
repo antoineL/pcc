@@ -50,9 +50,9 @@
 #define	DYNLINKLIB	"/lib64/ld-linux-x86-64.so.2"
 #define MUSL_DYLIB	"/lib/ld-musl-x86_64.so.1"
 #ifndef MULTIARCH_PATH
-#define	DEFLIBDIRS	{ "/usr/lib64/", 0 }
+#define	DEFLIBDIRS	{ "=/usr/lib64/", 0 }
 #else
-#define	DEFLIBDIRS	{ "/usr/lib64/", "/usr/lib/" MULTIARCH_PATH "/", 0 }
+#define	DEFLIBDIRS	{ "=/usr/lib64/", "=/usr/lib/" MULTIARCH_PATH "/", 0 }
 #endif
 #elif defined(mach_mips)
 #define CPPMDADD	{ "-D__mips__", NULL, }
