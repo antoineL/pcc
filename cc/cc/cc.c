@@ -1243,8 +1243,12 @@ run_linker(void)
 	int retval;
 
 	if (outfile) {
+#ifndef MSLINKER
 		strlist_prepend(&early_linker_flags, outfile);
 		strlist_prepend(&early_linker_flags, "-o");
+#else
+		strlist_prepend(&early_linker_flags, cat("/OUT:", outfile));
+#endif
 	}
 	strlist_init(&linker_flags);
 	strlist_append_list(&linker_flags, &early_linker_flags);
@@ -1902,9 +1906,12 @@ setup_ld_flags(void)
 			strlist_append(&early_linker_flags, dynlinkarg);
 			strlist_append(&early_linker_flags, dynlinklib);
 		}
+#ifndef MSLINKER
 		strlist_append(&early_linker_flags, "-e");
 		strlist_append(&early_linker_flags, STARTLABEL);
+#endif
 	}
+#ifndef MSLINKER
 	if (shared == 0 && rflag)
 		strlist_append(&early_linker_flags, "-r");
 #ifdef STARTLABEL_S
@@ -1913,13 +1920,18 @@ setup_ld_flags(void)
 		strlist_append(&early_linker_flags, STARTLABEL_S);
 	}
 #endif
+#endif
 	if (sysroot && *sysroot)
 		strlist_append(&early_linker_flags, cat("--sysroot=", sysroot));
 	if (!nostdlib) {
 		/* library search paths */
 		STRLIST_FOREACH(s, &libdirs)
  			strlist_append(&late_linker_flags,
+#ifndef MSLINKER
 			    cat("-L", s->value));
+#else
+			    cat("/LIBPATH:", s->value));
+#endif
 		/* standard libraries */
 		if (pgflag) {
 			for (i = 0; defproflibs[i]; i++)

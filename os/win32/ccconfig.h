@@ -7,6 +7,21 @@
 #if defined(MSLINKER)
 /* requires microsoft toolkit headers and linker, and pcc-libs */
 #define CPPADD		{ "-DWIN32", "-D_WIN32", NULL }
+
+#define CRT0		0
+#define STARTLABEL	
+#define CRT0_S		0
+#define GCRT0		0
+
+#define CRTBEGIN	0	/* No constructor/destructor support for now */
+#define CRTEND		0
+#define CRTBEGIN_S	0
+#define CRTEND_S	0
+#define CRTBEGIN_T	0	/* Note: MingW cannot do -static linking */
+#define CRTEND_T	0
+#define CRTI		0
+#define CRTN		0
+
 #define DEFLIBS		{ "/subsystem:console", "msvcrt.lib", "libpcc.a", NULL }
 #define DEFPROFLIBS	{ "/subsystem:console", "msvcrt.lib", "libpcc.a", NULL }
 #define DEFCXXLIBS	{ "/subsystem:console", "libp++.a", "msvcrt.lib", "libpcc.a", NULL }

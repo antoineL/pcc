@@ -21,7 +21,7 @@
 #endif
 
 #ifdef USE_MSLINKER
-#define LINKER "link.exe /nologo"
+#define LINKER "link.exe"
 #define MSLINKER
 #else
 #define LINKER "ld.exe"
