@@ -33,8 +33,8 @@
 #define STDINC "%PCCDIR%\\include\\"
 #define LIBDIR "%PCCDIR%\\lib\\"
 #define INCLUDEDIR STDINC
-#define PCCLIBDIR "%PCCDIR%\\lib\\i386-win32\\" PCCVERSION "\\lib\\"
-#define PCCINCDIR "%PCCDIR%\\lib\\i386-win32\\" PCCVERSION "\\include\\"
+#define PCCLIBDIR "%PCCDIR%\\lib\\pcc\\i386-win32\\" PCCVERSION "\\lib\\"
+#define PCCINCDIR "%PCCDIR%\\lib\\pcc\\i386-win32\\" PCCVERSION "\\include\\"
 
 #ifdef _MSC_VER
 #ifndef _CRT_SECURE_NO_WARNINGS
