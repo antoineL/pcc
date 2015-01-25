@@ -1918,6 +1918,7 @@ eprint(NODE *p, int down, int *a, int *b)
 #ifdef GCC_COMPAT
 	dump_attr(p->n_ap);
 #endif
+	printf("\n");
 }
 # endif
 

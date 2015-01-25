@@ -1081,7 +1081,6 @@ dump_attr(struct attr *ap)
 			    ap->iarg(1), ap->iarg(2));
 		}
 	}
-	printf("\n");
 }
 #endif
 #endif

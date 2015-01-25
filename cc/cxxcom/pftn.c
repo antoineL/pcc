@@ -167,6 +167,7 @@ defid(NODE *q, int class)
 #ifdef GCC_COMPAT
 		dump_attr(q->n_ap);
 #endif
+		printf("\n");
 	}
 #endif
 
@@ -474,6 +475,7 @@ done:
 #ifdef GCC_COMPAT
 		dump_attr(p->sap);
 #endif
+		printf("\n");
 	}
 #endif
 }
