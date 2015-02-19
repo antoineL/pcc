@@ -278,7 +278,7 @@ buildtree(int o, NODE *l, NODE *r)
 #ifndef CC_DIV_0
 		if (o == DIV &&
 		    ((r->n_op == ICON && r->n_lval == 0) ||
-		     (r->n_op == FCON && r->n_dcon == 0.0)))
+		     (r->n_op == FCON && FLOAT_ISZERO(r->n_dcon))))
 				goto runtime; /* HW dependent */
 #endif
 		if (l->n_op == ICON)
@@ -832,16 +832,27 @@ concast(NODE *p, TWORD t)
 	} else { /* p->n_op == FCON */
 		if (t == BOOL) {
 			p->n_op = ICON;
-			p->n_lval = FLOAT_NE(p->n_dcon,0.0);
+			p->n_lval = !FLOAT_ISZERO(p->n_dcon);
 			p->n_sp = NULL;
 		} else if (t <= ULONGLONG) {
 			p->n_op = ICON;
+#if 0
 			p->n_lval = ISUNSIGNED(t) ? /* XXX FIXME */
 			    ((U_CONSZ)p->n_dcon) : p->n_dcon;
+#elif 0
+			p->n_lval = FLOAT_CAST(p->n_dcon,t); /* XXX non: CAST expects lval */
+#else
+			p->n_lval = ISUNSIGNED(t) ? /* XXX FIXME */
+			    ((U_CONSZ)FLOAT_VAL(p->n_dcon)) : FLOAT_VAL(p->n_dcon);
+#endif
 			p->n_sp = NULL;
 		} else {
+#ifdef SOFTFLOAT
+			/* XXX need to write soft-rounding */
+#else
 			p->n_dcon = t == FLOAT ? (float)p->n_dcon :
 			    t == DOUBLE ? (double)p->n_dcon : p->n_dcon;
+#endif
 		}
 	}
 	p->n_type = t;

@@ -327,8 +327,13 @@ defzero(struct symtab *sp)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+/* XXX This code is copied from i386 or similar and looks strange with Vaxen... */
+/* XXX Vax floats are PDP-endian */
 	union { float f; double d; long double l; int i[3]; } u;
 
+#ifdef SOFTFLOAT
+	/* XXX missing... */
+#else
 	switch (p->n_type) {
 	case LDOUBLE:
 		u.i[2] = 0;
@@ -347,6 +352,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		return 0;
 	}
 	return 1;
+#endif
 
 }
 /*
