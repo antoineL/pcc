@@ -219,7 +219,7 @@ clocal(NODE *p)
 			case DOUBLE:
 			case FLOAT:
 				l->n_op = FCON;
-				l->n_dcon = val;
+				l->n_dcon = FLOAT_FROM_INT(val, l->n_type, p->n_type);
 				break;
 			default:
 				cerror("unknown type %d", l->n_type);
@@ -229,7 +229,10 @@ clocal(NODE *p)
 			nfree(p);
 			return l;
 		} else if (p->n_op == FCON) {
-			l->n_lval = l->n_dcon;
+			if (p->n_type == BOOL)
+				l->n_lval = !FLOAT_ISZERO(l->n_dcon);
+			else
+				l->n_lval =  FLOAT_TO_INT(l->n_dcon, p->n_type);
 			l->n_sp = NULL;
 			l->n_op = ICON;
 			l->n_type = p->n_type;
@@ -284,28 +287,10 @@ clocal(NODE *p)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
-
 	if (p->n_op != FCON)
 		return;
-
-#define IALLOC(sz)	(isinlining ? permalloc(sz) : tmpalloc(sz))
-
-	sp = IALLOC(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->sap = 0;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
-
-	defloc(sp);
-	ninval(0, tsize(sp->stype, sp->sdf, sp->sap), p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;	
-	p->n_sp = sp;
+	/* Write all float constants to memory */
+	fconmem(p);
 }
 
 /*
@@ -371,7 +356,9 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; int i[2]; } u;
+#endif
 	struct symtab *q;
 	TWORD t;
 	int i, j;
@@ -413,6 +400,13 @@ ninval(CONSZ off, int fsz, NODE *p)
 		}
 		printf("\n");
 		break;
+
+/* soft FP 32-bit and 64-bit formats are handled directly in inval() */
+/* Note: Ancient FP coprocessors (`FPA') used to load and store 64-bit
+ * doubles in big-endian order, even when the CPU was in little-endian mode!
+ * Fortunately, this does not occur with the more recent (and common) VFP.
+ */
+#ifndef SOFTFLOAT
 	case LDOUBLE:
 	case DOUBLE:
 		u.d = (double)p->n_dcon;
@@ -431,6 +425,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		u.f = (float)p->n_dcon;
 		printf("\t.word\t0x%x\n", u.i[0]);
 		break;
+#endif
 	default:
 		return 0;
 	}

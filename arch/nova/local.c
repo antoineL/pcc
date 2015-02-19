@@ -29,6 +29,27 @@
 
 /*	this file contains code which is dependent on the target machine */
 
+#ifdef SOFTFLOAT
+/*
+ * Description of hexadecimal floating-point types.
+ */
+FPI fpi_hexfloat32 = {
+	               24,
+	(  0 - 64)*4 - 24-3, /* base is 2^4, bias is 64, and */
+	(127 - 64)*4 - 24, /* the point is leftward of MSB */
+	                0, /* toward zero (chop) */ /* XXX revise */
+	                1, /* highest digit should not be 0x0 */
+	                1, /* MSB of significand is explicitely stored! */
+	                0, /* highest exponent is regular, no INF/NaN */
+	                0, /* sign is dropped when zero */
+	                1, /* YES, radix is 16! */
+	               32,
+	       64 *4 + 24
+};
+FPI fpi_hexfloat64 = { 56, 0-64*4-56-3, (127-64)*4-56, 0, 1,
+          1, 0, 0, 1,  64,   64*4+56 };
+#endif
+
 NODE *
 clocal(NODE *p)
 {
@@ -372,7 +393,6 @@ clocal(NODE *p)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
 	NODE *l, *r;
 	int o = p->n_op;
 
@@ -396,21 +416,9 @@ myp2tree(NODE *p)
 		break;
 
 	case FCON:
-		sp = inlalloc(sizeof(struct symtab));
-		sp->sclass = STATIC;
-		sp->sap = 0;
-		sp->slevel = 1; /* fake numeric label */
-		sp->soffset = getlab();
-		sp->sflags = 0;
-		sp->stype = p->n_type;
-		sp->squal = (CON >> TSHIFT);
-
-		defloc(sp);
-		ninval(0, tsize(sp->stype, sp->sdf, sp->sap), p);
-
-		p->n_op = NAME;
-		p->n_lval = 0;
-		p->n_sp = sp;
+		/* Write float constants to memory */
+		fconmem(p);
+		break;
 	}
 }
 
@@ -500,13 +508,15 @@ cerror("spalloc");
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	switch (p->n_type) {
 	case FLOAT:
 	case DOUBLE:
 	case LDOUBLE:
 		cerror("ninval");
 	}
-	return 1;
+#endif
+	return 0;
 }
 
 /* make a name look like an external name in the local machine */

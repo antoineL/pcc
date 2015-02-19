@@ -443,6 +443,11 @@ static NODE *
 mtisnan(NODE *p)
 {
 
+	if (p->n_type == FCON) {
+		int isnan = FLOAT_ISNAN(p->n_dcon);
+		tfree(p);	/* XXX is it correct? */
+		return bcon(isnan);
+	}
 	return binhelp(cast(ccopy(p), DOUBLE, 0), INT, "isnan");
 }
 
@@ -526,6 +531,7 @@ builtin_islessgreater(const struct bitable *bt, NODE *a)
 }
 #endif
 
+#ifndef SOFTFLOAT
 /*
  * Math-specific builtins that expands to constants.
  * Versins here is for IEEE FP, vax needs its own versions.
@@ -572,6 +578,21 @@ static const unsigned char nLDOUBLE[] = { 0x7f, 0xff, 0xc0, 0, 0, 0, 0, 0, 0, 0 
 	f->n_dcon = d;						\
 	return f;						\
 }
+#else
+/* XXX typ is not used. */
+#define VALX(typ,TYP) {						\
+	NODE *f;						\
+	f = block(FCON, NIL, NIL, TYP, NULL, 0);	\
+	f->n_dcon = hugesf(0, TYP);				\
+	return f;						\
+}
+#define INFX(TYP) {						\
+	NODE *f;						\
+	f = block(FCON, NIL, NIL, TYP, NULL, 0);	\
+	f->n_dcon = infsf(0);					\
+	return f;						\
+}
+#endif
 
 static NODE *
 builtin_huge_valf(const struct bitable *bt, NODE *a) VALX(float,FLOAT)
@@ -580,9 +601,24 @@ builtin_huge_val(const struct bitable *bt, NODE *a) VALX(double,DOUBLE)
 static NODE *
 builtin_huge_vall(const struct bitable *bt, NODE *a) VALX(long double,LDOUBLE)
 
+#ifndef SOFTFLOAT
+/*
+ * XXX This is not correct on machines like VAX where there no real infinities:
+ * On these machines, HUGE_VAL should be the same as DBL_MAX, while
+ * INFINITY ought to be an invalid value which should cause overflow error
+ * at translation time ("not representable") if used in expressions.
+ */
 #define	builtin_inff	builtin_huge_valf
 #define	builtin_inf	builtin_huge_val
 #define	builtin_infl	builtin_huge_vall
+#else
+static NODE *
+builtin_inff(const struct bitable *bt, NODE *a) INFX(FLOAT)
+static NODE *
+builtin_inf (const struct bitable *bt, NODE *a) INFX(DOUBLE)
+static NODE *
+builtin_infl(const struct bitable *bt, NODE *a) INFX(LDOUBLE)
+#endif
 
 /*
  * Return NANs, if reasonable.
@@ -596,7 +632,11 @@ builtin_nanx(const struct bitable *bt, NODE *a)
 	} else if (a->n_op == STRING && *a->n_name == '\0') {
 		a->n_op = FCON;
 		a->n_type = bt->rt;
+#ifndef SOFTFLOAT
 		memcpy(&a->n_dcon, nLDOUBLE, sizeof(a->n_dcon));
+#else
+		a->n_dcon = nansf(0);
+#endif
 	} else
 		a = binhelp(eve(a), bt->rt, &bt->name[10]);
 	return a;

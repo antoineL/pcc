@@ -91,6 +91,19 @@
 #undef	CHAR_UNSIGNED
 #define	BOOL_TYPE	CHAR	/* what used to store _Bool */
 
+#ifdef SOFTFLOAT
+/*
+ * Floating-point types.
+ */
+struct FPI;
+extern struct FPI fpi_Ffloat,
+	fpi_Dfloat;
+
+#define FPI_FLOAT	fpi_Ffloat
+#define FPI_DOUBLE	fpi_Dfloat
+#define FPI_LDOUBLE	FPI_DOUBLE
+#endif
+
 /*
  * Use large-enough types.
  */

@@ -372,7 +372,6 @@ setloc1(int locc)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
 	union dimfun *df;
 	union arglist *al;
 	NODE *q;
@@ -411,21 +410,7 @@ myp2tree(NODE *p)
 
 	case FCON:
 		/* Write float constants to memory */
-		sp = inlalloc(sizeof(struct symtab));
-		sp->sclass = STATIC;
-		sp->ssue = 0;
-		sp->slevel = 1; /* fake numeric label */
-		sp->soffset = getlab();
-		sp->sflags = 0;
-		sp->stype = p->n_type;
-		sp->squal = (CON >> TSHIFT);
-
-		defloc(sp);
-		ninval(0, sp->ssue->suesize, p);
-
-		p->n_op = NAME;
-		p->n_lval = 0;
-		p->n_sp = sp;
+		fconmem(p);
 		break;
 	}
 

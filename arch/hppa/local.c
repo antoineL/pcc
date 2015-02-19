@@ -544,10 +544,7 @@ makememcpy(void)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
-	int o = p->n_op;
-
-	if (o != FCON)
+	if (p->n_op != FCON)
 		return;
 
 	/* Write float constants to memory */
@@ -559,22 +556,8 @@ myp2tree(NODE *p)
 	    ALDOUBLE : ALLDOUBLE );
 	deflab1(i = getlab());
 #endif
-	sp = inlalloc(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->ssue = 0;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
 
-	defloc(sp);
-	ninval(0, btdims[p->n_type].suesize, p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;
-	p->n_sp = sp;
-
+	fconmem(p);
 }
 
 /*ARGSUSED*/
@@ -631,7 +614,12 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; long double l; int i[3]; } u;
+#else
+	SF sf;
+	int exp;
+#endif
 	struct symtab *q;
 	TWORD t;
 	int i;
@@ -665,6 +653,11 @@ ninval(CONSZ off, int fsz, NODE *p)
 		}
 		printf("\n");
 		break;
+/* soft FP 32-bit and 64-bit formats are handled directly in inval() */
+/* Note: the common code generates the IEEE-recommended encoding for NaN.
+ * On PA-RISC, such encoding is a signaling NaN.
+ */
+#ifndef SOFTFLOAT
 	case LDOUBLE:
 	case DOUBLE:
 		u.d = (double)p->n_dcon;
@@ -674,6 +667,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		u.f = (float)p->n_dcon;
 		printf("\t.long\t0x%x\n", u.i[0]);
 		break;
+#endif
 	default:
 		return 0;
 	}

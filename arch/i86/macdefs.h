@@ -46,7 +46,7 @@
 #define SZINT		16
 #define SZFLOAT		32
 #define SZDOUBLE	64
-#define SZLDOUBLE	96
+#define SZLDOUBLE	96	/* XXX could have been 80 */
 #define SZLONG		32
 #define SZSHORT		16
 #define SZLONGLONG	64	/* Doesn't work usefully yet */
@@ -58,7 +58,7 @@
 #define ALCHAR		8
 #define ALBOOL		8
 #define ALINT		16
-#define ALFLOAT		32
+#define ALFLOAT		32	/* XXX could have been 16 */
 #define ALDOUBLE	32
 #define ALLDOUBLE	32
 #define ALLONG		16
@@ -92,6 +92,16 @@
 #undef	CHAR_UNSIGNED
 #define	BOOL_TYPE	UCHAR	/* what used to store _Bool */
 #undef UNALIGNED_ACCESS
+
+#ifdef SOFTFLOAT
+/*
+ * Floating-point formats.
+ */
+#define FPI_FLOAT	fpi_binary32
+#define FPI_DOUBLE	fpi_binary64
+#define FPI_LDOUBLE	fpi_binaryx80
+#endif
+
 /*
  * Use large-enough types.
  */

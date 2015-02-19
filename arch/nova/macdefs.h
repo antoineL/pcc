@@ -88,14 +88,35 @@
 #define	BOOL_TYPE	UCHAR
 #define	MYALIGN		/* provide private alignment function */
 
+#ifdef SOFTFLOAT
+/*
+ * (Hexadecimal!) floating-point types.
+ */
+struct FPI;
+extern struct FPI fpi_hexfloat32,
+	fpi_hexfloat64;
+
+#define FPI_FLOAT	fpi_hexfloat32
+#define FPI_DOUBLE	fpi_hexfloat64
+#define FPI_LDOUBLE	FPI_DOUBLE
+#endif
+
 /*
  * Use large-enough types.
  */
+#ifdef SOFTFLOAT
+typedef	long long CONSZ;
+typedef	unsigned long long U_CONSZ;
+typedef long long OFFSZ;
+
+#define CONFMT	"0%llo"		/* format for printing constants */
+#else
 typedef	long CONSZ;
 typedef	unsigned long U_CONSZ;
 typedef long OFFSZ;
 
 #define CONFMT	"0%lo"		/* format for printing constants */
+#endif
 #define LABFMT	"L%d"		/* format for printing labels */
 #define	STABLBL	"LL%d"		/* format for stab (debugging) labels */
 

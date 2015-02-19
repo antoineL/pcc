@@ -99,6 +99,15 @@
 #define CHAR_UNSIGNED
 #define	BOOL_TYPE	INT	/* what used to store _Bool */
 
+#ifdef SOFTFLOAT
+/*
+ * Floating-point formats.
+ */
+#define FPI_FLOAT	fpi_binary32
+#define FPI_DOUBLE	fpi_binary64
+#define FPI_LDOUBLE	fpi_binary64
+#endif
+
 /*
  * Use large-enough types.
  */
