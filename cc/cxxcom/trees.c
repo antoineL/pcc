@@ -275,13 +275,14 @@ buildtree(int o, NODE *l, NODE *r)
 #ifndef CC_DIV_0
 		if (o == DIV &&
 		    ((r->n_op == ICON && r->n_lval == 0) ||
-		     (r->n_op == FCON && r->n_dcon == 0.0)))
+		     (r->n_op == FCON && FLOAT_ISZERO(r->n_dcon))))
 				goto runtime; /* HW dependent */
 #endif
+		t = (l->n_type > r->n_type ? l->n_type : r->n_type);
 		if (l->n_op == ICON)
-			l->n_dcon = FLOAT_CAST(l->n_lval, l->n_type);
+			l->n_dcon = FLOAT_FROM_INT(l->n_lval, l->n_type, t);
 		if (r->n_op == ICON)
-			r->n_dcon = FLOAT_CAST(r->n_lval, r->n_type);
+			r->n_dcon = FLOAT_FROM_INT(r->n_lval, r->n_type, t);
 		switch(o){
 		case PLUS:
 		case MINUS:
@@ -289,19 +290,18 @@ buildtree(int o, NODE *l, NODE *r)
 		case DIV:
 			switch (o) {
 			case PLUS:
-				l->n_dcon = FLOAT_PLUS(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_PLUS(l->n_dcon, r->n_dcon, t);
 				break;
 			case MINUS:
-				l->n_dcon = FLOAT_MINUS(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_MINUS(l->n_dcon, r->n_dcon, t);
 				break;
 			case MUL:
-				l->n_dcon = FLOAT_MUL(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_MUL(l->n_dcon, r->n_dcon, t);
 				break;
 			case DIV:
-				l->n_dcon = FLOAT_DIV(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_DIV(l->n_dcon, r->n_dcon, t);
 				break;
 			}
-			t = (l->n_type > r->n_type ? l->n_type : r->n_type);
 			l->n_op = FCON;
 			l->n_type = t;
 			nfree(r);
@@ -757,21 +757,19 @@ concast(NODE *p, TWORD t)
 			}
 		} else if (t <= LDOUBLE) {
 			p->n_op = FCON;
-			p->n_dcon = FLOAT_CAST(val, p->n_type);
+			p->n_dcon = FLOAT_FROM_INT(val, p->n_type, t);
 		}
 	} else { /* p->n_op == FCON */
 		if (t == BOOL) {
 			p->n_op = ICON;
-			p->n_lval = FLOAT_NE(p->n_dcon,0.0);
+			p->n_lval = !FLOAT_ISZERO(p->n_dcon);
 			p->n_sp = NULL;
 		} else if (t <= ULONGLONG) {
 			p->n_op = ICON;
-			p->n_lval = ISUNSIGNED(t) ? /* XXX FIXME */
-			    ((U_CONSZ)p->n_dcon) : p->n_dcon;
+			p->n_lval = FLOAT_TO_INT(p->n_dcon, t);
 			p->n_sp = NULL;
 		} else {
-			p->n_dcon = t == FLOAT ? (float)p->n_dcon :
-			    t == DOUBLE ? (double)p->n_dcon : p->n_dcon;
+			p->n_dcon = FLOAT_CAST(p->n_dcon, t);
 		}
 	}
 	p->n_type = t;

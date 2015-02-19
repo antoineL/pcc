@@ -184,6 +184,10 @@ ejobcode(int flag)
 void
 bjobcode(void)
 {
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[ULONG];
+	astypnames[DOUBLE] = astypnames[LDOUBLE] = astypnames[ULONGLONG];
+#endif
 }
 
 /* fix up type of field p */
