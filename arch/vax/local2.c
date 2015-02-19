@@ -1039,7 +1039,7 @@ adrput(FILE *fp, NODE *p)
 void
 acon(NODE *p)
 {
-	int u = (int)p->n_lval;;
+	int u = (int)p->n_lval;
 	CONSZ v = u;
 
 	if (p->n_name[0] == '\0') {
