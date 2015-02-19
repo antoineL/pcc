@@ -1094,9 +1094,6 @@ e2print(NODE *p, int down, int *a, int *b)
 	printf(", " );
 
 	prtreg(p);
-#ifdef GCC_COMPAT
-	if(p->n_ap) dump_attr(p->n_ap);
-#endif
 	printf(", SU= %d(%cREG,%s,%s,%s,%s)\n",
 	    TBLIDX(p->n_su), 
 	    TCLASS(p->n_su)+'@',
