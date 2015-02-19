@@ -402,7 +402,12 @@ int isbuiltin(char *n);
 #ifdef SOFTFLOAT
 typedef struct softfloat SF;
 SF soft_neg(SF);
+#ifdef notyet
+SF soft_cast(SF, TWORD);
+#else
+/* XXX mixed casts between float types and conversions from integers */
 SF soft_cast(CONSZ v, TWORD);
+#endif
 SF soft_plus(SF, SF);
 SF soft_minus(SF, SF);
 SF soft_mul(SF, SF);
@@ -414,15 +419,24 @@ int soft_cmp_gt(SF, SF);
 int soft_cmp_le(SF, SF);
 int soft_cmp_lt(SF, SF);
 int soft_isz(SF);
+#ifdef notyet
+SF soft_from_int(CONSZ, TWORD);
+CONSZ soft_to_int(SF, TWORD);
+#else
+SF soft_cast(CONSZ v, TWORD);
+#define	soft_from_int(v,t)	soft_cast(v,t)
 CONSZ soft_val(SF);
+#define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
+#endif
 #define FLOAT_NEG(sf)		soft_neg(sf)
-#define	FLOAT_CAST(v,t)		soft_cast(v, t)
+#define	FLOAT_CAST(x,t)		(x) /* XXX missing work */
+#define	FLOAT_FROM_INT(v,t)	soft_from_int(v, t)
+#define	FLOAT_TO_INT(sf,t)	soft_to_int(sf, t)
 #define	FLOAT_PLUS(x1,x2)	soft_plus(x1, x2)
 #define	FLOAT_MINUS(x1,x2)	soft_minus(x1, x2)
 #define	FLOAT_MUL(x1,x2)	soft_mul(x1, x2)
 #define	FLOAT_DIV(x1,x2)	soft_div(x1, x2)
 #define	FLOAT_ISZERO(sf)	soft_isz(sf)
-#define	FLOAT_VAL(sf)		soft_val(sf)
 #define FLOAT_EQ(x1,x2)		soft_cmp_eq(x1, x2)
 #define FLOAT_NE(x1,x2)		soft_cmp_ne(x1, x2)
 #define FLOAT_GE(x1,x2)		soft_cmp_ge(x1, x2)
@@ -431,14 +445,16 @@ CONSZ soft_val(SF);
 #define FLOAT_LT(x1,x2)		soft_cmp_lt(x1, x2)
 #else
 #define	FLOAT_NEG(p)		-(p)
-#define	FLOAT_CAST(p,v)		(ISUNSIGNED(v) ? \
+#define	FLOAT_CAST(p,v)		((v) == FLOAT ? (float)(p) : \
+			    (v) == DOUBLE ? (double)(p) : (p))
+#define	FLOAT_FROM_INT(p,v)		(ISUNSIGNED(v) ? \
 		(long double)(U_CONSZ)(p) : (long double)(CONSZ)(p))
+#define	FLOAT_TO_INT(p, t)	(ISUNSIGNED(t) ? (U_CONSZ)(p) : (CONSZ)(p))
 #define	FLOAT_PLUS(x1,x2)	(x1) + (x2)
 #define	FLOAT_MINUS(x1,x2)	(x1) - (x2)
 #define	FLOAT_MUL(x1,x2)	(x1) * (x2)
 #define	FLOAT_DIV(x1,x2)	(x1) / (x2)
 #define	FLOAT_ISZERO(p)		(p) == 0.0
-#define FLOAT_VAL(p)		(CONSZ)(p)
 #define FLOAT_EQ(x1,x2)		(x1) == (x2)
 #define FLOAT_NE(x1,x2)		(x1) != (x2)
 #define FLOAT_GE(x1,x2)		(x1) >= (x2)

@@ -324,13 +324,30 @@ defzero(struct symtab *sp)
  * fsz is the number of bits this is referring to
  * XXX - floating point constants may be wrong if cross-compiling.
  */
+/* XXX Cross-compilers alert: Vax floats are PDP-endian... */
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
-	union { float f; double d; long double l; int i[3]; } u;
+#ifdef SOFTFLOAT
+	switch (p->n_type) {
+	case FLOAT:
+		printf("\t.short\t0%o, 0%o\n", p->n_dcon.fd1, p->n_dcon.fd2);
+		break;
+	case LDOUBLE:
+	case DOUBLE:
+		printf("\t.short\t0%o, 0%o, 0%o, 0%o\n", p->n_dcon.fd1, p->n_dcon.fd2,
+		    p->n_dcon.fd3, p->n_dcon.fd4);
+		break;
+	default:
+		return 0;
+	}
+	return 1;
+#else
+	union { float f; double d; long double l; short s[4]; int i[3]; } u;
 
 	switch (p->n_type) {
 	case LDOUBLE:
+		/* XXX AL20150220: This code looks a bit strange with Vaxen... */
 		u.i[2] = 0;
 		u.l = (long double)p->n_dcon;
 		printf("\t.long\t0x%x,0x%x,0x%x\n", u.i[0], u.i[1], u.i[2]);
@@ -347,6 +364,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		return 0;
 	}
 	return 1;
+#endif
 
 }
 /*
