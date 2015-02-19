@@ -467,7 +467,7 @@ cvtdig(int radix)
 	switch (ntype) {
 	case DOUBLE: /* special case */
 		p = block(FCON, NIL, NIL, IMAG, 0, 0);
-		p->n_dcon = FLOAT_CAST(v, DOUBLE);
+		p->n_dcon = FLOAT_FROM_INT(v, DOUBLE);
 		return p;
 
 	case INT:
