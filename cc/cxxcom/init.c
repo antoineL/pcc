@@ -252,6 +252,43 @@ inval(CONSZ off, int fsz, NODE *p)
 				    sp->soname : exname(sp->sname));
 		}
 		printf("\n");
+#ifdef SOFTFLOAT
+	} 
+	else if (t <= LDOUBLE) {
+		SF sf;
+		FPI *fpi;
+		int exp, fracbits, ti;
+
+		if (p->n_op != FCON || t<FLOAT || t>LDOUBLE) {
+			cerror("Botch in FP constant init");
+			return;
+		}
+		if (strcmp(astypnames[t], "ERR") == 0) {
+			cerror("FP type %d init should be handled in MD part", (int)t);
+			return;
+		}
+		for (ti=0; ti<=LDOUBLE; ++ti)
+			if (astypnames[ti] && strcmp(astypnames[t], astypnames[ti]) == 0)
+				break;
+		if (ti >= FLOAT) {
+			cerror("FP type %d init cannot be handled as %s",
+			       (int)t, astypnames[t]);
+			return;
+		}
+		fpi = fpis[t - FLOAT];
+		sf = p->n_dcon;
+		exp = soft_pack(&sf, t);
+		fracbits = fpi->nbits - 1;
+		if (fpi->explicit_one) ++fracbits;
+		p->n_lval = sf.significand & (((U_CONSZ)1 << fracbits) - 1);
+		p->n_lval |= ((U_CONSZ)exp) << fracbits;
+		if (sf.kind & SF_Neg)
+			p->n_lval |= ((U_CONSZ)1 << (fpi->storage-1));
+		p->n_op = ICON;
+		p->n_type = ti;
+		p->n_sp = NULL;
+		inval(off, SZMASK(sztable[t]), p);
+#endif
 	} else
 		cerror("inval: unhandled type %d", (int)t);
 }

@@ -102,6 +102,10 @@ clocal(NODE *p)
 			break;
 		}
 
+/*
+ * XXX Looks like this code is no longer needed here;
+ * see revision 1.147 of arch/i386/local.c, 2011-06-02 16:40:56 +0200
+ */
 		switch (p->n_type) {
 		case BOOL:      l->n_lval = (l->n_lval != 0); break;
 		case CHAR:      l->n_lval = (char)l->n_lval; break;
@@ -118,7 +122,7 @@ clocal(NODE *p)
 		case DOUBLE:
 		case LDOUBLE:
 			l->n_op = FCON;
-			l->n_dcon = l->n_lval;
+			l->n_dcon = FLOAT_FROM_INT(l->n_lval, l->n_type, p->n_type);
 			break;
 		case VOID:
 			break;
@@ -196,6 +200,7 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; int i; long long l; } u;
 
 	switch (p->n_type) {
@@ -211,6 +216,9 @@ ninval(CONSZ off, int fsz, NODE *p)
 		return 0;
 	}
 	return 1;
+#else
+	return 0;
+#endif
 }
 
 char *

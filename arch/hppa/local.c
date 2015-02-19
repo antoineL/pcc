@@ -631,7 +631,12 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; long double l; int i[3]; } u;
+#else
+	SF sf;
+	int exp;
+#endif
 	struct symtab *q;
 	TWORD t;
 	int i;
@@ -665,6 +670,11 @@ ninval(CONSZ off, int fsz, NODE *p)
 		}
 		printf("\n");
 		break;
+/* soft FP 32-bit and 64-bit formats are handled directly in inval() */
+/* Note: the common code generates the IEEE-recommended encoding for NaN.
+ * On PA-RISC, such encoding is a signaling NaN.
+ */
+#ifndef SOFTFLOAT
 	case LDOUBLE:
 	case DOUBLE:
 		u.d = (double)p->n_dcon;
@@ -674,6 +684,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		u.f = (float)p->n_dcon;
 		printf("\t.long\t0x%x\n", u.i[0]);
 		break;
+#endif
 	default:
 		return 0;
 	}

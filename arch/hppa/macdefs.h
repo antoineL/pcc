@@ -88,6 +88,15 @@
 #undef	CHAR_UNSIGNED
 #define	BOOL_TYPE	CHAR
 
+#ifdef SOFTFLOAT
+/*
+ * Floating-point formats.
+ */
+#define FPI_FLOAT	fpi_binary32
+#define FPI_DOUBLE	fpi_binary64
+#define FPI_LDOUBLE	fpi_binary64	/* or later fpi_binary128 */
+#endif
+
 typedef long long CONSZ;
 typedef unsigned long long U_CONSZ;
 typedef long long OFFSZ;

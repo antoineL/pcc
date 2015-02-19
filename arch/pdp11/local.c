@@ -29,6 +29,27 @@
 
 /*	this file contains code which is dependent on the target machine */
 
+#ifdef SOFTFLOAT
+/*
+ * Description of floating-point types.
+ */
+FPI fpi_Ffloat = {
+	            24,
+	  1 - 128 - 24, /* bias is 128, and */
+	255 - 128 - 24, /* the point is leftward of MSB */
+	             5, /* rounds ties away, not to even */
+	             1, /* sudden underflow, no denormals */
+	             0, /* MSB of significand is not explicitely stored*/
+	             0, /* highest exponent is regular, no INF/NaN */
+	             0, /* zero with negative sign raises a trap (?) */
+	             0, /* radix is 2, not 16 */
+	            32,
+	      128 + 24
+};
+FPI fpi_Dfloat = { 56, 1-128-56,  255-128-56, 5, 1,
+      0, 0, 0, 0,  64,   128+56 };
+#endif
+
 /* clocal() is called to do local transformations on
  * an expression tree preparitory to its being
  * written out in intermediate code.
@@ -425,8 +446,10 @@ infld(CONSZ off, int fsz, CONSZ val)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 #ifdef __pdp11__
 	union { float f; double d; short s[4]; int i[2]; } u;
+#endif
 #endif
 	struct symtab *q;
 	TWORD t;
@@ -466,6 +489,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		}
 		printf("\n");
 		break;
+#ifndef SOFTFLOAT
 #ifdef __pdp11__
 	case FLOAT:
 		u.f = (float)p->n_dcon;
@@ -478,6 +502,10 @@ ninval(CONSZ off, int fsz, NODE *p)
 		break;
 #else
 	/* cross-compiling */
+#error Not supporting cross-compiling without soft-float enabled
+#endif
+#else
+#ifdef FDFLOAT
 	case FLOAT:
 		printf("%o ; %o\n", p->n_dcon.fd1, p->n_dcon.fd2);
 		break;
@@ -486,6 +514,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		printf("%o ; %o ; %o ; %o\n", p->n_dcon.fd1, p->n_dcon.fd2,
 		    p->n_dcon.fd3, p->n_dcon.fd4);
 		break;
+#endif
 #endif
 	default:
 		return 0;

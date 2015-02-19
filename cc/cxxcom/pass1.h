@@ -276,7 +276,11 @@ NODE *	typenode(NODE *new);
 void	spalloc(NODE *, NODE *, OFFSZ);
 char	*exname(char *);
 NODE	*floatcon(char *);
+#if defined(SOFTFLOAT) && !defined(FDFLOAT)
+#define fhexcon(s) floatcon(s)
+#else
 NODE	*fhexcon(char *);
+#endif
 NODE	*bdty(int op, ...);
 extern struct rstack *rpole;
 
@@ -401,12 +405,78 @@ int isbuiltin(char *n);
 
 #ifdef SOFTFLOAT
 typedef struct softfloat SF;
+
+enum {	/* SF.kind values; same as STRTODG_* values */
+	SF_Zero		= 0,
+	SF_Normal	= 1,
+	SF_Denormal	= 2,
+	SF_Infinite	= 3,
+	SF_NaN		= 4, /* default quiet NaN */
+	SF_NaNbits	= 5, /* (not used) */
+	SF_NoNumber	= 6, /* signaling NaN */
+	SF_kmask	= 7,
+
+	/* The following may be or-ed into one of the above values. */
+	SF_Neg		= 0x08, /* does not affect SFEXCP_Inex(lo|hi) */
+	SFEXCP_Inexlo	= 0x10, /* returned result rounded toward zero */
+	SFEXCP_Inexhi	= 0x20, /* returned result rounded away from zero */
+	SFEXCP_Inexact	= 0x30,
+	SFEXCP_Underflow= 0x40,
+	SFEXCP_Overflow	= 0x80
+};
+
+typedef struct FPI {
+	int nbits;
+	int emin;
+	int emax;
+	int rounding;
+	int sudden_underflow:1;
+	int explicit_one:1; /* if MSB is explicitely stored */
+	int has_inf_nan:1;  /* highest exponent means INF and NaN */
+	int has_neg_zero:1;
+	int has_radix_16:1;
+	int storage;
+	int exp_bias;
+} FPI;
+
+enum {	/* FPI.rounding values: same as FLT_ROUNDS */
+	FPI_Round_zero = 0,	/* same meaning as FE_TOWARDZERO */
+	FPI_Round_near = 1,	/* same meaning as FE_TONEAREST */
+	FPI_Round_up = 2,	/* same meaning as FE_UPWARD */
+	FPI_Round_down = 3,	/* same meaning as FE_DOWNWARD */
+/* Warning: if adding new modes, keep same meaning for 2 low bits. */
+	FPI_Round_near_ties_up = 5, /* to nearest but ties up (Vax) */
+};
+
+extern FPI * fpis[3], /* FLOAT, DOUBLE, LDOUBLE, respectively */
+	/* IEEE754 binary formats, and their interchange format encodings: */
+	fpi_binary32,
+	fpi_binary64,
+#ifndef notyet
+	fpi_binary128,
+#endif
+	fpi_binary16,	/* IEEE 754:2008 "half-precision" */
+	fpi_binaryx80;	/* usual IEEE double extended */
+
+int soft_pack(SF *, TWORD);
 SF soft_neg(SF);
+#ifndef FDFLOAT
+SF soft_cast(SF, TWORD);
+#else
+/* XXX mixed casts between float types and conversions from integers */
 SF soft_cast(CONSZ v, TWORD);
+#endif
+#ifndef FDFLOAT
+SF soft_plus(SF, SF, TWORD);
+SF soft_minus(SF, SF, TWORD);
+SF soft_mul(SF, SF, TWORD);
+SF soft_div(SF, SF, TWORD);
+#else
 SF soft_plus(SF, SF);
 SF soft_minus(SF, SF);
 SF soft_mul(SF, SF);
 SF soft_div(SF, SF);
+#endif
 int soft_cmp_eq(SF, SF);
 int soft_cmp_ne(SF, SF);
 int soft_cmp_ge(SF, SF);
@@ -414,15 +484,37 @@ int soft_cmp_gt(SF, SF);
 int soft_cmp_le(SF, SF);
 int soft_cmp_lt(SF, SF);
 int soft_isz(SF);
+#ifndef FDFLOAT
+int soft_isinf(SF);
+int soft_isnan(SF);
+int soft_cmp_unord(SF, SF);
+SF soft_from_int(CONSZ, TWORD src_int_ty, TWORD dst_float_ty);
+CONSZ soft_to_int(SF, TWORD);
+#else
+#define	soft_from_int(v,f,t)	soft_cast(v,t)
 CONSZ soft_val(SF);
+#define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
+#endif
 #define FLOAT_NEG(sf)		soft_neg(sf)
-#define	FLOAT_CAST(v,t)		soft_cast(v, t)
-#define	FLOAT_PLUS(x1,x2)	soft_plus(x1, x2)
-#define	FLOAT_MINUS(x1,x2)	soft_minus(x1, x2)
-#define	FLOAT_MUL(x1,x2)	soft_mul(x1, x2)
-#define	FLOAT_DIV(x1,x2)	soft_div(x1, x2)
+#ifndef FDFLOAT
+#define	FLOAT_CAST(x,t)		soft_cast(x,t)
+#else
+#define	FLOAT_CAST(x,t)		(x) /* XXX missing work */
+#endif
+#define	FLOAT_FROM_INT(v,f,t)	soft_from_int(v, f, t)
+#define	FLOAT_TO_INT(sf,t)	soft_to_int(sf, t)
+#ifndef FDFLOAT
+#define	FLOAT_PLUS(x1,x2,t)	soft_plus(x1, x2, t)
+#define	FLOAT_MINUS(x1,x2,t)	soft_minus(x1, x2, t)
+#define	FLOAT_MUL(x1,x2,t)	soft_mul(x1, x2, t)
+#define	FLOAT_DIV(x1,x2,t)	soft_div(x1, x2, t)
+#else
+#define	FLOAT_PLUS(x1,x2,t)	soft_plus(x1, x2)
+#define	FLOAT_MINUS(x1,x2,t)	soft_minus(x1, x2)
+#define	FLOAT_MUL(x1,x2,t)	soft_mul(x1, x2)
+#define	FLOAT_DIV(x1,x2,t)	soft_div(x1, x2)
+#endif
 #define	FLOAT_ISZERO(sf)	soft_isz(sf)
-#define	FLOAT_VAL(sf)		soft_val(sf)
 #define FLOAT_EQ(x1,x2)		soft_cmp_eq(x1, x2)
 #define FLOAT_NE(x1,x2)		soft_cmp_ne(x1, x2)
 #define FLOAT_GE(x1,x2)		soft_cmp_ge(x1, x2)
@@ -431,14 +523,16 @@ CONSZ soft_val(SF);
 #define FLOAT_LT(x1,x2)		soft_cmp_lt(x1, x2)
 #else
 #define	FLOAT_NEG(p)		-(p)
-#define	FLOAT_CAST(p,v)		(ISUNSIGNED(v) ? \
+#define	FLOAT_CAST(p,v)		((v) == FLOAT ? (float)(p) : \
+			    (v) == DOUBLE ? (double)(p) : (p))
+#define	FLOAT_FROM_INT(p,v,t)		(ISUNSIGNED(v) ? \
 		(long double)(U_CONSZ)(p) : (long double)(CONSZ)(p))
-#define	FLOAT_PLUS(x1,x2)	(x1) + (x2)
-#define	FLOAT_MINUS(x1,x2)	(x1) - (x2)
-#define	FLOAT_MUL(x1,x2)	(x1) * (x2)
-#define	FLOAT_DIV(x1,x2)	(x1) / (x2)
+#define	FLOAT_TO_INT(p, t)	(ISUNSIGNED(t) ? (U_CONSZ)(p) : (CONSZ)(p))
+#define	FLOAT_PLUS(x1,x2,t)	(x1) + (x2)
+#define	FLOAT_MINUS(x1,x2,t)	(x1) - (x2)
+#define	FLOAT_MUL(x1,x2,t)	(x1) * (x2)
+#define	FLOAT_DIV(x1,x2,t)	(x1) / (x2)
 #define	FLOAT_ISZERO(p)		(p) == 0.0
-#define FLOAT_VAL(p)		(CONSZ)(p)
 #define FLOAT_EQ(x1,x2)		(x1) == (x2)
 #define FLOAT_NE(x1,x2)		(x1) != (x2)
 #define FLOAT_GE(x1,x2)		(x1) >= (x2)

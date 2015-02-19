@@ -371,7 +371,9 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; int i[2]; } u;
+#endif
 	struct symtab *q;
 	TWORD t;
 	int i, j;
@@ -413,6 +415,13 @@ ninval(CONSZ off, int fsz, NODE *p)
 		}
 		printf("\n");
 		break;
+
+/* soft FP 32-bit and 64-bit formats are handled directly in inval() */
+/* Note: Ancient FP coprocessors (`FPA') used to load and store 64-bit
+ * doubles in big-endian order, even when the CPU was in little-endian mode!
+ * Fortunately, this does not occur with the more recent (and common) VFP.
+ */
+#ifndef SOFTFLOAT
 	case LDOUBLE:
 	case DOUBLE:
 		u.d = (double)p->n_dcon;
@@ -431,6 +440,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		u.f = (float)p->n_dcon;
 		printf("\t.word\t0x%x\n", u.i[0]);
 		break;
+#endif
 	default:
 		return 0;
 	}

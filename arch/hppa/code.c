@@ -195,6 +195,10 @@ bjobcode(void)
 	printf("\t.level\t1.1\n"
 	    "\t.import $global$, data\n"
 	    "\t.import $$dyncall, millicode\n");
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+	astypnames[DOUBLE] = astypnames[LDOUBLE] = astypnames[ULONGLONG];
+#endif
 }
 
 /* fix up type of field p */

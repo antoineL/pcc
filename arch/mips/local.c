@@ -253,6 +253,10 @@ clocal(NODE *p)
 		m = p->n_type;
 
 		if (o == ICON) {
+/*
+ * XXX Looks like this code is no longer needed here;
+ * see revision 1.147 of arch/i386/local.c, 2011-06-02 16:40:56 +0200
+ */
 			CONSZ val = l->n_lval;
 
 			if (!ISPTR(m)) /* Pointers don't need to be conv'd */
@@ -292,7 +296,7 @@ clocal(NODE *p)
 			case DOUBLE:
 			case FLOAT:
 				l->n_op = FCON;
-				l->n_dcon = val;
+				l->n_dcon = FLOAT_FROM_INT(val, l->n_type, m);
 				break;
 			default:
 				cerror("unknown type %d", m);
@@ -301,7 +305,10 @@ clocal(NODE *p)
 			nfree(p);
 			p = l;
 		} else if (o == FCON) {
-			l->n_lval = l->n_dcon;
+			if (p->n_type == BOOL)
+				l->n_lval = !FLOAT_ISZERO(l->n_dcon);
+			else
+				l->n_lval =  FLOAT_TO_INT(l->n_dcon, m);
 			l->n_sp = NULL;
 			l->n_op = ICON;
 			l->n_type = m;
@@ -424,7 +431,9 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
         union { float f; double d; int i[2]; } u;
+#endif
         struct symtab *q;
         TWORD t;
 #ifndef USE_GAS
@@ -476,6 +485,13 @@ ninval(CONSZ off, int fsz, NODE *p)
         case USHORT:
 		astypnames[SHORT] = astypnames[USHORT] = "\t.half";
                 return 0;
+/* soft FP 32-bit and 64-bit formats are handled directly in inval() */
+/* Note: the common code generates the IEEE-recommended encoding for NaN.
+ * Recent MIPS processors (> 2012) agree, but ancient ones have the reverse
+ * expectations (so the NaN will be considered as signalling.)
+ * (Recent) GAS supports a directive ".nan 2008" (set flag in ELF.)
+ */
+#ifndef SOFTFLOAT
         case LDOUBLE:
         case DOUBLE:
                 u.d = (double)p->n_dcon;
@@ -491,6 +507,7 @@ ninval(CONSZ off, int fsz, NODE *p)
                 u.f = (float)p->n_dcon;
                 printf("\t.word\t0x%x\n", u.i[0]);
                 break;
+#endif
         default:
                 return 0;
         }
