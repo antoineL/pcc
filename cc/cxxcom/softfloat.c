@@ -349,7 +349,7 @@ floatcon(char *s)
 		fl = soft_mul(fl, flexp);
 
 	DEXPSET(fl, DEXP(fl) + negexp*bexp);
-	p = block(FCON, NIL, NIL, DOUBLE, 0, MKSUE(DOUBLE)); /* XXX type */
+	p = block(FCON, NIL, NIL, DOUBLE, 0, 0); /* XXX type */
 	p->n_dcon = fl;
 	return p;
 }
