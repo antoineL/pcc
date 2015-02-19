@@ -573,12 +573,20 @@ static const unsigned char nLDOUBLE[] = { 0x7f, 0xff, 0xc0, 0, 0, 0, 0, 0, 0, 0 
 	return f;						\
 }
 
+#ifdef SOFTFLOAT
+static NODE *
+builtin_huge_val(const struct bitable *bt, NODE *a) VALX(SF,DOUBLE)
+/* XXX temporary hack */
+#define builtin_huge_valf builtin_huge_val
+#define builtin_huge_vall builtin_huge_val
+#else
 static NODE *
 builtin_huge_valf(const struct bitable *bt, NODE *a) VALX(float,FLOAT)
 static NODE *
 builtin_huge_val(const struct bitable *bt, NODE *a) VALX(double,DOUBLE)
 static NODE *
 builtin_huge_vall(const struct bitable *bt, NODE *a) VALX(long double,LDOUBLE)
+#endif
 
 #define	builtin_inff	builtin_huge_valf
 #define	builtin_inf	builtin_huge_val
