@@ -175,11 +175,70 @@ THIS SOFTWARE.
  *	#define DECLARE_SIZE_T in this case.
  * #define USE_LOCALE to use the current locale's decimal_point value.
  */
+#define NO_INFNAN_CHECK
+#define NO_HEX_FP /* XXX checkme */
+#define No_Hex_NaN
 
 #ifndef GDTOAIMP_H_INCLUDED
 #define GDTOAIMP_H_INCLUDED
-#include "gdtoa.h"
-#include "gd_qnan.h"
+/*#include "gdtoa.h"*/
+#include "arith.h"
+#include <stddef.h> /* for size_t */
+
+#ifndef Long
+#define Long int
+#endif
+#ifndef ULong
+typedef unsigned Long ULong;
+#endif
+#ifndef UShort
+typedef unsigned short UShort;
+#endif
+
+#define ANSI(x) x
+#define Void void
+#define CONST const
+
+ enum {	/* return values from strtodg */
+	STRTOG_Zero	= 0,
+	STRTOG_Normal	= 1,
+	STRTOG_Denormal	= 2,
+	STRTOG_Infinite	= 3,
+	STRTOG_NaN	= 4,
+	STRTOG_NaNbits	= 5,
+	STRTOG_NoNumber	= 6,
+	STRTOG_Retmask	= 7,
+
+	/* The following may be or-ed into one of the above values. */
+
+	STRTOG_Neg	= 0x08, /* does not affect STRTOG_Inexlo or STRTOG_Inexhi */
+	STRTOG_Inexlo	= 0x10,	/* returned result rounded toward zero */
+	STRTOG_Inexhi	= 0x20, /* returned result rounded away from zero */
+	STRTOG_Inexact	= 0x30,
+	STRTOG_Underflow= 0x40,
+	STRTOG_Overflow	= 0x80
+	};
+
+ typedef struct
+FPI {
+	int nbits;
+	int emin;
+	int emax;
+	int rounding;
+	int sudden_underflow;
+	/*int int_max;*/
+	} FPI;
+
+enum {	/* FPI.rounding values: same as FLT_ROUNDS */
+	FPI_Round_zero = 0,
+	FPI_Round_near = 1,
+	FPI_Round_up = 2,
+	FPI_Round_down = 3
+	};
+
+extern int strtodg (const char*, char**, FPI*, Long*, ULong*);
+/* ###END### #include "gdtoa.h"*/
+/* (only strtoxxx.c)  #include "gd_qnan.h" */
 #ifdef Honor_FLT_ROUNDS
 #include <fenv.h>
 #endif
@@ -202,6 +261,16 @@ THIS SOFTWARE.
 extern Char *MALLOC ANSI((size_t));
 #else
 #define MALLOC malloc
+#endif
+
+#if defined(IEEE_8087) + defined(IEEE_MC68k) + defined(VAX) + defined(IBM) == 0
+#if TARGET_ENDIAN == TARGET_LE
+#define IEEE_LITTLE_ENDIAN
+#define IEEE_8087
+#else
+#define IEEE_BIG_ENDIAN
+#define IEEE_MC68k
+#endif
 #endif
 
 #undef IEEE_Arith
