@@ -311,6 +311,152 @@ typround(long double dc, char *e, TWORD *tw)
 	return dc;
 }
 
+#ifdef HAVE_STRTODG
+static FPI*
+guessfpi(char *str)
+{
+	char *suf;
+
+	suf = str + strlen(str) - 1;
+	if (*suf == 'i') --suf;
+	switch (*suf) {
+	case 'f':
+	case 'F':
+		return &FPI_FLOAT;
+	case 'l':
+	case 'L':
+		return &FPI_LDOUBLE;
+	default:
+		return &FPI_DOUBLE;
+	}
+}
+
+static long double
+storebinaryx80(long double dc, int k, FPI *fpi, Long expt, ULong *bits)
+{
+#ifdef HOST_BIG_ENDIAN
+#define _0 0
+#define _1 1
+#define _2 2
+#define _3 3
+#define _4 4
+#endif
+#ifdef HOST_LITTLE_ENDIAN
+#define _0 4
+#define _1 3
+#define _2 2
+#define _3 1
+#define _4 0
+#endif
+	UShort *L = (UShort*)&dc;
+
+	switch(k & STRTOG_Retmask) {
+	  case STRTOG_Zero:
+		L[0] = L[1] = L[2] = L[3] = L[4] = 0;
+		break;
+
+	  case STRTOG_Denormal:
+		L[_4] = 0;
+		goto normal_bits;
+
+	  case STRTOG_Normal:
+	  case STRTOG_NaNbits:
+//		L[_4] = expt + 0x3fff + 63;
+		L[_4] = expt + /*fpi->XXX*/0x3fff + fpi->nbits-1;
+ normal_bits:
+		L[_0] = (UShort)bits[0];
+		L[_1] = (UShort)(bits[0] >> 16);
+		L[_2] = (UShort)bits[1];
+		L[_3] = (UShort)(bits[1] >> 16);
+		break;
+
+	  case STRTOG_Infinite:
+		L[_4] = 0x7fff;
+		L[_3] = 0x8000;
+		L[_2] = L[_1] = L[_0] = 0;
+		break;
+
+/*
+	  case STRTOG_NoNumber:
+	  case STRTOG_NaN:
+		L[_0] = NanDflt_ldus_D2A[0];
+		L[_1] = NanDflt_ldus_D2A[1];
+		L[_2] = NanDflt_ldus_D2A[2];
+		L[_3] = NanDflt_ldus_D2A[3];
+		L[_4] = NanDflt_ldus_D2A[4];
+ */
+	  }
+	if (k & STRTOG_Neg)
+		L[_0] |= 0x8000;
+	return dc;
+#undef _0
+#undef _1
+#undef _2
+#undef _3
+#undef _4
+}
+
+static long double
+storebinary64(long double dc, int k, FPI *fpi, Long expt, ULong *bits)
+{
+#ifdef HOST_BIG_ENDIAN
+#define _0 1
+#define _1 0
+#endif
+#ifdef HOST_LITTLE_ENDIAN
+#define _0 0
+#define _1 1
+#endif
+	union { ULong L[2]; double d; } u;
+	ULong bits0, bits1;
+	if (fpi->nbits <= 32) {
+		bits0 = 0;
+		bits1 = bits[0];
+	}
+	else {
+		bits0 = bits[0];
+		bits1 = bits[1];
+	}
+
+	switch(k & STRTOG_Retmask) {
+	  case STRTOG_NoNumber:
+	  case STRTOG_Zero:
+		u.L[0] = u.L[1] = 0;
+		break;
+
+	  case STRTOG_Normal:
+		u.L[_0] = bits0;
+		u.L[_1] = (bits1 & ~0x100000) | ((expt + 0x3ff + 52) << 20);
+		break;
+
+	  case STRTOG_Denormal:
+		u.L[_1] = bits[0];
+		u.L[_0] = bits[1];
+		break;
+
+	  case STRTOG_Infinite:
+		u.L[_0] = 0x7ff00000;
+		u.L[_1] = 0;
+		break;
+/*
+	  case STRTOG_NaN:
+		u.L[0] = d_QNAN0;
+		u.L[1] = d_QNAN1;
+		break;
+
+	  case STRTOG_NaNbits:
+		u.L[_0] = 0x7ff00000 | bits[1];
+		u.L[_1] = bits[0];
+ */
+	  }
+	if (k & STRTOG_Neg)
+		u.L[_0] |= 0x80000000L;
+	return u.d;
+#undef _0
+#undef _1
+}
+#endif
+
 /*
  * XXX floatcon() and fhexcon() should be in support libraries for
  * the target floating point.
@@ -323,7 +469,16 @@ f2(char *str)
 	long double dc;
 	char *eptr;
 
-#ifdef HAVE_STRTOLD
+#ifdef HAVE_STRTODG
+	FPI *fpi;
+	ULong bits[2];
+	Long expt;
+	int k;
+
+	fpi = guessfpi(str);
+	k = strtodg(str, &eptr, fpi, &expt, bits);
+	dc = storebinaryx80(dc, k, fpi, expt, bits);
+#elif defined HAVE_STRTOLD
 	dc = strtold(str, &eptr); /* XXX - avoid strtod() */
 #else
 	dc = strtod(str, &eptr); /* XXX - avoid strtod() */

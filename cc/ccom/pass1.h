@@ -430,6 +430,13 @@ enum {	/* FPI.rounding values: same as FLT_ROUNDS */
 	FPI_Round_down = 3
 };
 
+extern FPI fpi_binary32,
+	fpi_binary64,
+	fpi_binaryx80;
+#ifndef notyet
+extern FPI fpi_binary128;
+#endif
+
 #ifndef Long
 #define Long int
 #endif
@@ -439,7 +446,8 @@ typedef unsigned Long ULong;
 #ifndef UShort
 typedef unsigned short UShort;
 #endif
-extern int strtodg (const char*, char**, FPI*, Long*, ULong*);
+int strtodg (const char*, char**, FPI*, Long*, ULong*);
+int strhextodg (const char*, char**, FPI*, Long*, ULong*);
 
 #ifdef SOFTFLOAT
 typedef struct softfloat SF;
