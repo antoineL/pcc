@@ -88,6 +88,19 @@
 #define	BOOL_TYPE	UCHAR
 #define	MYALIGN		/* provide private alignment function */
 
+#ifdef SOFTFLOAT
+/*
+ * (Hexadecimal!) floating-point types.
+ */
+struct FPI;
+extern struct FPI fpi_hexfloat32,
+	fpi_hexfloat64;
+
+#define FPI_FLOAT	fpi_hexfloat32
+#define FPI_DOUBLE	fpi_hexfloat64
+#define FPI_LDOUBLE	FPI_DOUBLE
+#endif
+
 /*
  * Use large-enough types.
  */

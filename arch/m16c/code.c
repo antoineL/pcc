@@ -256,6 +256,27 @@ bjobcode(void)
 	for (c = caps; c->cap; c++)
 		printf("	RTMODEL \"%s\", \"%s\"\n", c->cap, c->stat);
 	//printf("	RSEG CODE:CODE:REORDER:NOROOT(0)\n");
+#ifdef SOFTFLOAT
+#if SZFLOAT==16
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+#elif SZFLOAT==32
+	astypnames[FLOAT] = astypnames[ULONG];
+#endif
+#if SZDOUBLE==16
+	astypnames[DOUBLE] = astypnames[UNSIGNED];
+#elif SZDOUBLE==32
+	astypnames[DOUBLE] = astypnames[ULONG];
+#elif SZDOUBLE==64
+	astypnames[DOUBLE] = astypnames[ULONGLONG];
+#endif
+#if SZLDOUBLE==16
+	astypnames[LDOUBLE] = astypnames[UNSIGNED];
+#elif SZLDOUBLE==32
+	astypnames[LDOUBLE] = astypnames[ULONG];
+#elif SZLDOUBLE==64
+	astypnames[LDOUBLE] = astypnames[ULONGLONG];
+#endif
+#endif
 }
 
 /* called just before final exit */

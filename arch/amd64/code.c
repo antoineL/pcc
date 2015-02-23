@@ -525,6 +525,7 @@ bjobcode(void)
 	NODE *p, *q;
 	char *c;
 
+#ifndef SOFTFLOAT
 #if defined(__GNUC__) || defined(__PCC__)
 	/* Be sure that the compiler uses full x87 */
 	/* XXX cross-compiling will fail here */
@@ -533,10 +534,18 @@ bjobcode(void)
 	fcw |= 0x33f;
 	__asm("fldcw (%0)" : : "r"(&fcw));
 #endif
+#endif
 
 	/* amd64 names for some asm constant printouts */
 	astypnames[INT] = astypnames[UNSIGNED] = "\t.long";
 	astypnames[LONG] = astypnames[ULONG] = "\t.quad";
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+	astypnames[DOUBLE] = astypnames[ULONG];
+#if SZLDOUBLE==64
+	astypnames[LDOUBLE] = astypnames[ULONG];
+#endif
+#endif
 
 	gp_offset = addname("gp_offset");
 	fp_offset = addname("fp_offset");
