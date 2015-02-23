@@ -925,7 +925,11 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; long double l; int i[3]; } u;
+#else
+	SF sf;
+#endif
 	int i;
 
 	switch (p->n_type) {
@@ -939,6 +943,20 @@ ninval(CONSZ off, int fsz, NODE *p)
 		inval(off+32, 32, p);
 		break;
 	case LDOUBLE:
+#ifdef SOFTFLOAT
+		sf = p->n_dcon;
+		/* XXX normalize, expand QNaN into LLONG_MIN */
+		p->n_lval = sf.significand & 0xffffffff;
+		p->n_op = ICON;
+		p->n_type = UNSIGNED;
+		p->n_sp = NULL;
+		inval(off, 32, p);
+		p->n_lval = sf.significand >> 32;
+		inval(off+32, 32, p);
+		p->n_lval = (sf.exponent + FPI_LDOUBLE.exp_bias) & 0x7fff;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+		inval(off+64, 32, p);
+#else
 		u.i[2] = 0;
 		u.l = (long double)p->n_dcon;
 #if defined(HOST_BIG_ENDIAN)
@@ -947,18 +965,45 @@ ninval(CONSZ off, int fsz, NODE *p)
 #else
 		printf("\t.long\t%d,%d,%d\n", u.i[0], u.i[1], u.i[2] & 0177777);
 #endif
+#endif
 		break;
 	case DOUBLE:
+#ifdef SOFTFLOAT
+		sf = p->n_dcon;
+		/* XXX normalize, expand QNaN into LLONG_MIN>>11 */
+		p->n_lval = sf.significand & 0xffffffff;
+		p->n_op = ICON;
+		p->n_type = UNSIGNED;
+		p->n_sp = NULL;
+		inval(off, 32, p);
+		p->n_lval = (sf.significand >> 32) & 0xfffff;
+		p->n_lval |= ((sf.exponent+FPI_DOUBLE.exp_bias)&0x7ff) << 20;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x80000000;
+		inval(off+32, 32, p);
+#else
 		u.d = (double)p->n_dcon;
 #if defined(HOST_BIG_ENDIAN)
 		printf("\t.long\t0x%x,0x%x\n", u.i[1], u.i[0]);
 #else
 		printf("\t.long\t%d,%d\n", u.i[0], u.i[1]);
 #endif
+#endif
 		break;
 	case FLOAT:
+#ifdef SOFTFLOAT
+		sf = p->n_dcon;
+		/* XXX normalize, expand QNaN into 0x400000 */
+		p->n_lval = sf.significand & 0x7fffff;
+		p->n_op = ICON;
+		p->n_type = UNSIGNED;
+		p->n_sp = NULL;
+		p->n_lval |= ((sf.exponent+FPI_FLOAT.exp_bias) & 0x7f) << 23;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x80000000;
+		inval(off+64, 32, p);
+#else
 		u.f = (float)p->n_dcon;
 		printf("\t.long\t%d\n", u.i[0]);
+#endif
 		break;
 	default:
 		return 0;

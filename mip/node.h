@@ -102,6 +102,13 @@ typedef struct node {
 		struct softfloat {
 			unsigned short fd1, fd2, fd3, fd4;
 		} _dcon;
+#elif defined IEEESOFTFLOAT
+		/* To store IEEE754 double extended in expanded format */
+		struct softfloat {
+			unsigned long long significand;
+			signed short exponent;
+			short kind;
+		} _dcon;
 #else
 #error missing softfloat structure definition
 #endif

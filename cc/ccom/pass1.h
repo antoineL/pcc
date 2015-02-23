@@ -397,6 +397,55 @@ NODE *nlabel(int label);
 
 #ifdef SOFTFLOAT
 typedef struct softfloat SF;
+
+enum {	/* SF.kind values; same as STRTODG_* values */
+	SF_Zero		= 0,
+	SF_Normal	= 1,
+	SF_Denormal	= 2,
+	SF_Infinite	= 3,
+	SF_NaN		= 4,
+	SF_NaNbits	= 5,
+	SF_NoNumber	= 6,
+	SF_kmask	= 7,
+
+	/* The following may be or-ed into one of the above values. */
+	SF_Neg		= 0x08, /* does not affect SFEXCP_Inex(lo|hi) */
+	SFEXCP_Inexlo	= 0x10, /* returned result rounded toward zero */
+	SFEXCP_Inexhi	= 0x20, /* returned result rounded away from zero */
+	SFEXCP_Inexact	= 0x30,
+	SFEXCP_Underflow= 0x40,
+	SFEXCP_Overflow	= 0x80
+};
+
+typedef struct FPI {
+	int nbits;
+	int emin;
+	int emax;
+	int rounding;
+	int sudden_underflow:1;
+	int explicit_one:1; /* if MSB is explicitely stored */
+	int has_inf_nan:1;  /* highest exponent means INF and NaN */
+	int has_neg_zero:1;
+	int storage;
+	int exp_bias;
+	int internal_pad1; /* padding bits between significand and exponent */
+	int internal_pad2; /* padding bits inside signific.at quad boundary */
+} FPI;
+
+enum {	/* FPI.rounding values: same as FLT_ROUNDS */
+	FPI_Round_zero = 0,
+	FPI_Round_near = 1,
+	FPI_Round_up = 2,
+	FPI_Round_down = 3
+};
+
+extern FPI fpi_binary32,
+	fpi_binary64,
+#ifndef notyet
+	fpi_binary128,
+#endif
+	fpi_binaryx80;
+
 SF soft_neg(SF);
 #ifdef notyet
 SF soft_cast(SF, TWORD);
@@ -424,6 +473,8 @@ SF soft_cast(CONSZ v, TWORD);
 CONSZ soft_val(SF);
 #define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
 #endif
+
+#ifdef notyet /* XXX */
 #define FLOAT_NEG(sf)		soft_neg(sf)
 #define	FLOAT_CAST(x,t)		(x) /* XXX missing work */
 #define	FLOAT_FROM_INT(v,t)	soft_from_int(v, t)
@@ -439,6 +490,24 @@ CONSZ soft_val(SF);
 #define FLOAT_GT(x1,x2)		soft_cmp_gt(x1, x2)
 #define FLOAT_LE(x1,x2)		soft_cmp_le(x1, x2)
 #define FLOAT_LT(x1,x2)		soft_cmp_lt(x1, x2)
+#else
+SF sfzero;
+#define	FLOAT_NEG(sf)		((sf).kind ^= SF_Neg, (sf))
+#define	FLOAT_CAST(sf,t)	(sf) /* XXX missing work */
+#define	FLOAT_FROM_INT(v,t)	(sfzero.significand = (v), sfzero) /* XXX missing work */
+#define	FLOAT_TO_INT(sf,t)	((sf).significand) /* XXX missing work */
+#define	FLOAT_PLUS(x1,x2)	(x1) /* XXX missing work */
+#define	FLOAT_MINUS(x1,x2)	(x1) /* XXX missing work */
+#define	FLOAT_MUL(x1,x2)	(x1) /* XXX missing work */
+#define	FLOAT_DIV(x1,x2)	(x1) /* XXX missing work */
+#define	FLOAT_ISZERO(sf)	(((sf).kind & SF_kmask) == SF_Zero)
+#define FLOAT_EQ(x1,x2)		((x1).significand == (x2).significand) /* XXX */
+#define FLOAT_NE(x1,x2)		((x1).significand != (x2).significand) /* XXX */
+#define FLOAT_GE(x1,x2)		((x1).significand >= (x2).significand) /* XXX */
+#define FLOAT_GT(x1,x2)		((x1).significand >  (x2).significand) /* XXX */
+#define FLOAT_LE(x1,x2)		((x1).significand <= (x2).significand) /* XXX */
+#define FLOAT_LT(x1,x2)		((x1).significand <  (x2).significand) /* XXX */
+#endif
 #else
 #define	FLOAT_NEG(p)		-(p)
 #define	FLOAT_CAST(p,v)		((v) == FLOAT ? (float)(p) : \
