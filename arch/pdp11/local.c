@@ -29,6 +29,30 @@
 
 /*	this file contains code which is dependent on the target machine */
 
+/*
+ * Description of floating-point types.
+ */
+#if defined(_MSC_VER) && _MSC_VER<=1600
+#define FS(x)
+#else
+#define FS(x) .x =
+#endif
+FPI fpi_Ffloat = {
+	FS(nbits)             24,
+	FS(emin)    1 - 128 - 24, /* bias is 128, and */
+	FS(emax)  255 - 128 - 24, /* the point is leftward of MSB */
+	FS(rounding)     5, /* rounds ties away, not to even */
+	FS(sudden_underflow) 1, /* no denormals */
+	FS(explicit_one) 0, /* MSB of significand is not explicitely stored*/
+	FS(has_inf_nan)  0, /* highest exponent is regular, no INF/NaN */
+	FS(has_neg_zero) 0, /* zero with negative sign raises a trap */
+	FS(has_radix_16) 0,
+	FS(storage)	32,
+	FS(exp_bias)    128 + 24
+};
+FPI fpi_Dfloat = { 56, 1-128-56,  255-128-56, 5, 1,
+      0, 0, 0, 0,  64,   128+56 };
+
 /* clocal() is called to do local transformations on
  * an expression tree preparitory to its being
  * written out in intermediate code.
@@ -425,8 +449,15 @@ infld(CONSZ off, int fsz, CONSZ val)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifdef SOFTFLOAT
+#ifndef FDFLOAT
+	SF sf;
+	int exp;
+#endif
+#else
 #ifdef __pdp11__
 	union { float f; double d; short s[4]; int i[2]; } u;
+#endif
 #endif
 	struct symtab *q;
 	TWORD t;
@@ -466,6 +497,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		}
 		printf("\n");
 		break;
+#ifndef SOFTFLOAT
 #ifdef __pdp11__
 	case FLOAT:
 		u.f = (float)p->n_dcon;
@@ -478,6 +510,10 @@ ninval(CONSZ off, int fsz, NODE *p)
 		break;
 #else
 	/* cross-compiling */
+#error Not supporting cross-compiling without soft-float enabled
+#endif
+#else
+#ifdef FDFLOAT
 	case FLOAT:
 		printf("%o ; %o\n", p->n_dcon.fd1, p->n_dcon.fd2);
 		break;
@@ -486,6 +522,40 @@ ninval(CONSZ off, int fsz, NODE *p)
 		printf("%o ; %o ; %o ; %o\n", p->n_dcon.fd1, p->n_dcon.fd2,
 		    p->n_dcon.fd3, p->n_dcon.fd4);
 		break;
+#else
+/* XXX Could probably use the common code in ninval(). */
+	case FLOAT:
+		sf = p->n_dcon;
+		exp = soft_pack(&sf, FLOAT);
+		p->n_lval = (sf.significand >> 16) & 0x7f;
+		p->n_lval |= exp << 7;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+		p->n_op = ICON;
+		p->n_type = USHORT;
+		p->n_sp = NULL;
+		inval(off, 16, p);
+		p->n_lval = sf.significand & 0xffff;
+		inval(off+16, 16, p);
+		break;
+	case LDOUBLE:
+	case DOUBLE:
+		sf = p->n_dcon;
+		exp = soft_pack(&sf, p->n_type);
+		p->n_lval = (sf.significand >> 48) & 0x7F;
+		p->n_lval |= exp << 7;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+		p->n_op = ICON;
+		p->n_type = USHORT;
+		p->n_sp = NULL;
+		inval(off, 16, p);
+		p->n_lval = (sf.significand >> 32) & 0xffff;
+		inval(off+16, 16, p);
+		p->n_lval = (sf.significand >> 16) & 0xffff;
+		inval(off+32, 16, p);
+		p->n_lval = sf.significand & 0xffff;
+		inval(off+48, 16, p);
+		break;
+#endif
 #endif
 	default:
 		return 0;

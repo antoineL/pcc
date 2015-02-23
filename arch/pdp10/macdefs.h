@@ -97,6 +97,15 @@
 #define	WORD_ADDRESSED
 
 /*
+ * Floating-point types.
+ */
+struct FPI;
+extern struct FPI fpi_pdp10float,
+	fpi_pdp10double,
+	fpi_kl10Gsingle, /* a.k.a. extended precision */
+	fpi_kl10Gdouble;
+
+/*
  * Use large-enough types.
  */
 typedef	long long CONSZ;

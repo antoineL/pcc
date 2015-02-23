@@ -89,6 +89,17 @@
 #define	MYALIGN		/* provide private alignment function */
 
 /*
+ * (Hexadecimal!) floating-point types.
+ */
+struct FPI;
+extern struct FPI fpi_hexfloat32,
+	fpi_hexfloat64;
+
+#define FPI_FLOAT	fpi_hexfloat32
+#define FPI_DOUBLE	fpi_hexfloat64
+#define FPI_LDOUBLE	FPI_DOUBLE
+
+/*
  * Use large-enough types.
  */
 typedef	long CONSZ;

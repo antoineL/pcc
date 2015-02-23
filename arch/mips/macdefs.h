@@ -102,6 +102,13 @@
 #define BOOL_TYPE	INT
 
 /*
+ * Floating-point formats.
+ */
+#define FPI_FLOAT	fpi_binary32
+#define FPI_DOUBLE	fpi_binary64
+#define FPI_LDOUBLE	fpi_binary64
+
+/*
  * Use large-enough types.
  */
 typedef	long long CONSZ;

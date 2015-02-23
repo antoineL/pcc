@@ -196,6 +196,7 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; int i; long long l; } u;
 
 	switch (p->n_type) {
@@ -211,6 +212,9 @@ ninval(CONSZ off, int fsz, NODE *p)
 		return 0;
 	}
 	return 1;
+#else
+	return 0;
+#endif
 }
 
 char *
