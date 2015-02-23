@@ -179,6 +179,13 @@ bjobcode(void)
 	/* Set correct names for our types */
 	astypnames[SHORT] = astypnames[USHORT] = "\t.word";
 	astypnames[INT] = astypnames[UNSIGNED] = "\t.long";
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+	astypnames[DOUBLE] = astypnames[ULONGLONG];
+#if SZLDOUBLE==64
+	astypnames[LDOUBLE] = astypnames[ULONGLONG];
+#endif
+#endif
 }
 
 /*

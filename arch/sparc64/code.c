@@ -123,6 +123,10 @@ bjobcode(void)
 	astypnames[INT] = astypnames[UNSIGNED] = "\t.long";
 	astypnames[LONG] = astypnames[ULONG] = 
 	    astypnames[LONGLONG] = astypnames[ULONGLONG] = "\t.xword";
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+	astypnames[DOUBLE] = astypnames[LDOUBLE] = astypnames[ULONG];
+#endif
 }
 
 /*

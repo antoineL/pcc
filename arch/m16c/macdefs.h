@@ -43,6 +43,7 @@
 /*
  * Storage space requirements
  */
+/* XXX check floating-point sizes */
 #define SZCHAR		8
 #define SZINT		16
 #define SZFLOAT         16
@@ -90,6 +91,19 @@
 
 /* Default char is unsigned */
 #undef	CHAR_UNSIGNED
+
+#ifdef SOFTFLOAT
+/*
+ * Floating-point formats.
+ * Note that M16C has no on-chip floating-point support.
+ * (32-bit R32C have some support for single-precision.)
+ * So for now on, we just agree with the sizes of the types.
+ * See also caps["__64bit_doubles"]
+ */
+#define FPI_FLOAT	fpi_binary16
+#define FPI_DOUBLE	fpi_binary16
+#define FPI_LDOUBLE	fpi_binary16
+#endif
 
 /*
  * Use large-enough types.
