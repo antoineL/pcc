@@ -427,6 +427,13 @@ bjobcode(void)
 	printf("\t.section .mdebug.abi32\n");
 	printf("\t.previous\n");
 	printf("\t.abicalls\n");
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+	astypnames[DOUBLE] = astypnames[LDOUBLE] = astypnames[ULONGLONG];
+#ifdef USE_GAS
+	printf("\t.nan 2008\n");
+#endif
+#endif
 }
 
 #ifdef notdef

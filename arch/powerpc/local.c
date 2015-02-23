@@ -844,7 +844,9 @@ instring(struct symtab *sp)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; long double l; int i[3]; } u;
+#endif
 	struct symtab *q;
 	char *c;
 	TWORD t;
@@ -916,6 +918,8 @@ ninval(CONSZ off, int fsz, NODE *p)
 		}
 		printf("\n");
 		break;
+/* soft FP 32-bit and 64-bit formats are handled directly in inval() */
+#ifndef SOFTFLOAT
 	case LDOUBLE:
 		u.i[2] = 0;
 		u.l = (long double)p->n_dcon;
@@ -934,6 +938,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		u.f = (float)p->n_dcon;
 		printf("\t.long 0x%x\n", u.i[0]);
 		break;
+#endif
 	default:
 		return 0;
 	}

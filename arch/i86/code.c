@@ -255,6 +255,13 @@ void
 bjobcode(void)
 {
 	astypnames[INT] = astypnames[UNSIGNED] = "\t.long";
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[ULONG];
+	astypnames[DOUBLE] = astypnames[ULONGLONG];
+#if SZLDOUBLE==64
+	astypnames[LDOUBLE] = astypnames[ULONGLONG];
+#endif
+#endif
 }
 
 /*
