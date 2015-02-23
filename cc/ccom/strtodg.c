@@ -1,3 +1,73 @@
+#ifdef SOFTFLOAT
+#define STRTODG_FOR_PCC
+#ifdef STRTODG_FOR_PCC
+/*
+ * This is a derivation of (part of) the package gdtoa published by
+ * David M. Gay and generally available as gdtoa.tgz at
+ * http://www.netlib.org/fp/
+ *
+ * We used only the decimal->binary "generic" conversion, which is
+ * exposed through the strtodg() function, along with all the support
+ * routines it needs. We have concatenated the files
+ *	gdtoaimp.h
+ *	misc.c
+ *	hd_init.c
+ *	gmisc.c
+ *	smisc.c
+ *	sum.c
+ *	strtodg.c
+ *	gethex.c
+ * removing the duplicated notices (first 32 lines.)
+ * Then we have introduced small changes, mostly to silence compiler
+ * warnings or to disable features we do not use.
+ * Our functional changes are surrounded with STRTODG_FOR_PCC.
+ * We stick to the naming and style conventions used in the original
+ * package, to improve the "diffability" with it.
+ * The reference version could thus be retrieved with
+sed -e "32q" gdtoaimp.h > strtodg.ref
+for f in gdtoaimp.h misc.c hd_init.c gmisc.c smisc.c sum.c strtodg.c gethex.c
+do sed -e "1,32d" $f >>strtodg.ref
+done
+ *
+ * Notes:
+ * . An important distinction to do is between the target architecture,
+ * which is generally described throgh the FPI structure; and the host
+ * double floating-point, which is highly relied upon; variances
+ * between the host implementations (IEEE or VAX, little- or big-endian)
+ * should be detected at compile time, and are discrimated through the
+ * source with the use of the macros IEEE_xxx or VAX (or IBM, untested.)
+ *
+ * Known issue: some compilers are reporting warnings about "shadowing
+ * variables", because of the use of 'exp' as a variable name.
+ */
+
+/* Tailoring for PCC */
+#define NO_INFNAN_CHECK
+#define NO_HEX_FP /* XXX checkme */
+#define No_Hex_NaN
+#define NO_ERRNO
+#undef USE_LOCALE
+
+#ifndef __MATH_H__
+#define __MATH_H__ /* skip unnecessary math.h, and avoid troubles */
+#endif
+
+#include "config.h"
+#if defined(IEEE_8087) + defined(IEEE_MC68k) + defined(VAX) + defined(IBM) == 0
+/* Try to guess the host floating-point implementation */
+#if defined(vax) || defined(__vax__)
+#define VAX
+#elif defined(HOST_LITTLE_ENDIAN)
+#define IEEE_8087
+#define IEEE_LITTLE_ENDIAN
+#elif defined(HOST_BIG_ENDIAN)
+#define IEEE_MC68k
+#define IEEE_BIG_ENDIAN
+#endif
+#endif
+#endif
+
+/* gdtoaimp.h */
 /****************************************************************
 
 The author of this software is David M. Gay.
@@ -37,16 +107,9 @@ THIS SOFTWARE.
    with " at " changed at "@" and " dot " changed to ".").
  */
 
-/* On a machine with IEEE extended-precision registers, it is
- * necessary to specify double-precision (53-bit) rounding precision
- * before invoking strtod or dtoa.  If the machine uses (the equivalent
- * of) Intel 80x87 arithmetic, the call
- *	_control87(PC_53, MCW_PC);
- * does this with many compilers.  Whether this or another call is
- * appropriate depends on the compiler; for this to work, it may be
- * necessary to #include "float.h" or another system-dependent header
- * file.
- */
+#ifdef STRTODG_FOR_PCC
+/* (Irrelevant comment removed, to avoid being misled.) */
+#endif
 
 /* strtod for IEEE-, VAX-, and IBM-arithmetic machines.
  *
@@ -178,8 +241,49 @@ THIS SOFTWARE.
 
 #ifndef GDTOAIMP_H_INCLUDED
 #define GDTOAIMP_H_INCLUDED
+#ifndef STRTODG_FOR_PCC
 #include "gdtoa.h"
 #include "gd_qnan.h"
+#else
+/* The public part has been moved to PCC headers */
+#include "pass1.h"
+
+#undef FREE	/* Do not mix apples with oranges... */
+#define MALLOC(sz) tmpalloc(sz)
+#define FREE(p) /*nothing to do*/
+
+/* Just provide the "ANSI C" wrappers, to improve "diffability" */
+#define ANSI(x) x
+#define Void void
+#define CONST const
+
+#ifndef Long
+#define Long int /* Better support than int32_t or int_fast32_t. */
+#endif
+#ifndef ULong
+typedef unsigned Long ULong;
+#endif
+
+enum {	/* return values from strtodg */
+	STRTOG_Zero	= SF_Zero,	/* required to be =0 */
+	STRTOG_Normal	= SF_Normal,
+	STRTOG_Denormal	= SF_Denormal,
+	STRTOG_Infinite	= SF_Infinite,
+	STRTOG_NaN	= SF_NaN,
+	STRTOG_NaNbits	= SF_NaNbits,
+	STRTOG_NoNumber	= SF_NoNumber,
+	STRTOG_Retmask	= SF_kmask,
+	/* The following may be or-ed into one of the above values. */
+	STRTOG_Neg	= SF_Neg, /* does not affect STRTOG_Inexlo or STRTOG_Inexhi */
+	STRTOG_Inexlo	= SFEXCP_Inexlo, /* returned result rounded toward zero */
+	STRTOG_Inexhi	= SFEXCP_Inexhi, /* returned result rounded away from zero */
+	STRTOG_Inexact	= SFEXCP_Inexact,
+	STRTOG_Underflow= SFEXCP_Underflow,
+	STRTOG_Overflow	= SFEXCP_Overflow
+};
+int strtodg (const char*, char**, FPI*, Long*, ULong*);
+int strhextodg (const char*, char**, FPI*, Long*, ULong*);
+#endif /* STRTODG_FOR_PCC */
 #ifdef Honor_FLT_ROUNDS
 #include <fenv.h>
 #endif
@@ -534,18 +638,22 @@ extern void memcpy_D2A ANSI((void*, const void*, size_t));
 
  extern char *add_nanbits ANSI((char*, size_t, ULong*, int));
  extern char *dtoa_result;
+#ifndef STRTODG_FOR_PCC
  extern CONST double bigtens[], tens[], tinytens[];
  extern unsigned char hexdig[];
+#endif
  extern const char *InfName[6], *NanName[3];
 
  extern Bigint *Balloc ANSI((int));
  extern void Bfree ANSI((Bigint*));
+#ifndef STRTODG_FOR_PCC
  extern void ULtof ANSI((ULong*, ULong*, Long, int));
  extern void ULtod ANSI((ULong*, ULong*, Long, int));
  extern void ULtodd ANSI((ULong*, ULong*, Long, int));
  extern void ULtoQ ANSI((ULong*, ULong*, Long, int));
  extern void ULtox ANSI((UShort*, ULong*, Long, int));
  extern void ULtoxL ANSI((ULong*, ULong*, Long, int));
+#endif
  extern ULong any_on ANSI((Bigint*, int));
  extern double b2d ANSI((Bigint*, int*));
  extern int cmp ANSI((Bigint*, Bigint*));
@@ -553,12 +661,16 @@ extern void memcpy_D2A ANSI((void*, const void*, size_t));
  extern Bigint *d2b ANSI((double, int*, int*));
  extern void decrement ANSI((Bigint*));
  extern Bigint *diff ANSI((Bigint*, Bigint*));
+#ifndef STRTODG_FOR_PCC
  extern char *dtoa ANSI((double d, int mode, int ndigits,
 			int *decpt, int *sign, char **rve));
  extern char *g__fmt ANSI((char*, char*, char*, int, ULong, size_t));
  extern int gethex ANSI((CONST char**, FPI*, Long*, Bigint**, int));
  extern void hexdig_init_D2A(Void);
  extern int hexnan ANSI((CONST char**, FPI*, ULong*));
+#else
+ extern int gethex_D2A ANSI((CONST char**, FPI*, Long*, Bigint**, int));
+#endif
  extern int hi0bits_D2A ANSI((ULong));
  extern Bigint *i2b ANSI((int));
  extern Bigint *increment ANSI((Bigint*));
@@ -576,8 +688,10 @@ extern void memcpy_D2A ANSI((void*, const void*, size_t));
  extern Bigint *s2b ANSI((CONST char*, int, int, ULong, int));
  extern Bigint *set_ones ANSI((Bigint*, int));
  extern char *strcp ANSI((char*, const char*));
+#ifndef STRTODG_FOR_PCC
  extern int strtoIg ANSI((CONST char*, char**, FPI*, Long*, Bigint**, int*));
  extern double strtod ANSI((const char *s00, char **se));
+#endif
  extern Bigint *sum ANSI((Bigint*, Bigint*));
  extern int trailz ANSI((Bigint*));
  extern double ulp ANSI((U*));
@@ -585,6 +699,7 @@ extern void memcpy_D2A ANSI((void*, const void*, size_t));
 #ifdef __cplusplus
 }
 #endif
+#ifndef STRTODG_FOR_PCC /* No NaN stuff here */
 /*
  * NAN_WORD0 and NAN_WORD1 are only referenced in strtod.c.  Prior to
  * 20050115, they used to be hard-wired here (to 0x7ff80000 and 0,
@@ -621,6 +736,7 @@ extern void memcpy_D2A ANSI((void*, const void*, size_t));
 #else
 #undef INFNAN_CHECK
 #endif
+#endif
 
 #undef SI
 #ifdef Sudden_Underflow
@@ -631,6 +747,7 @@ extern void memcpy_D2A ANSI((void*, const void*, size_t));
 
 #endif /* GDTOAIMP_H_INCLUDED */
 
+/* misc.c */
  static Bigint *freelist[Kmax+1];
 #ifndef Omit_Private_Memory
 #ifndef PRIVATE_MEM
@@ -1474,6 +1591,7 @@ memcpy_D2A(void *a1, void *b1, size_t len)
 
 #endif /* NO_STRING_H */
 
+/* hd_init.c */
 #if 0
  unsigned char hexdig[256];
 
@@ -1519,6 +1637,7 @@ hexdig_init_D2A(Void)	/* Use of hexdig_init omitted 20121220 to avoid a */
 	};
 #endif
 
+/* gmisc.c */
  void
 #ifdef KR_headers
 rshift(b, k) Bigint *b; int k;
@@ -1573,6 +1692,7 @@ trailz(Bigint *b)
 	return n;
 	}
 
+/* smisc.c */
  Bigint *
 s2b
 #ifdef KR_headers
@@ -1732,6 +1852,7 @@ any_on(Bigint *b, int k)
 	return 0;
 	}
 
+/* sum.c */
  Bigint *
 #ifdef KR_headers
 sum(a, b) Bigint *a; Bigint *b;
@@ -1798,6 +1919,7 @@ sum(Bigint *a, Bigint *b)
 	return c;
 	}
 
+/* strtodg.c */
 #ifdef USE_LOCALE
 #include "locale.h"
 #endif
@@ -2092,7 +2214,7 @@ strtodg
 	int bb0, bb2, bb5, bbe, bd2, bd5, bbbits, bs2, c, decpt, denorm;
 	int dsign, e, e1, e2, emin, esign, finished, i, inex, irv;
 	int j, k, nbits, nd, nd0, nf, nz, nz0, rd, rvbits, rve, rve1, sign;
-	int sudden_underflow;
+	int sudden_underflow = 0; /* silence compilers */
 	CONST char *s, *s0, *s1;
 	double adj0, tol;
 	Long L;
@@ -2126,6 +2248,7 @@ strtodg
 	dval(&rv) = 0.;
 	rvb = 0;
 	nbits = fpi->nbits;
+#ifndef STRTODG_FOR_PCC
 	for(s = s00;;s++) switch(*s) {
 		case '-':
 			sign = 1;
@@ -2162,6 +2285,10 @@ strtodg
 				}
 			goto ret;
 		  }
+#endif
+#else
+	s = s00;
+	if (*s == '0') {
 #endif
 		nz0 = 1;
 		while(*++s == '0') ;
@@ -2754,7 +2881,7 @@ strtodg
 		Bfree(bs);
 		Bfree(delta);
 		}
-	if (!denorm && (j = nbits - rvbits)) {
+	if (!denorm && (j = nbits - rvbits) != 0) {
 		if (j > 0)
 			rvb = lshift(rvb, j);
 		else
@@ -2787,8 +2914,8 @@ strtodg
 		b = bits;
 		be = b + ((fpi->nbits + 31) >> 5);
 		while(b < be)
-			*b++ = -1;
-		if ((j = fpi->nbits & 0x1f))
+			*b++ = (ULong)(-1);
+		if ((j = fpi->nbits & 0x1f) != 0)
 			*--be >>= (32 - j);
 		goto ret;
  huge:
@@ -2797,7 +2924,9 @@ strtodg
 #ifndef NO_ERRNO
 		errno = ERANGE;
 #endif
+#ifdef INFNAN_CHECK
  infnanexp:
+#endif
 		*exp = fpi->emax + 1;
 		}
  ret:
@@ -2831,6 +2960,7 @@ strtodg
 	return irv;
 	}
 
+/* gethex.c */
 #ifdef USE_LOCALE
 #include "locale.h"
 #endif
@@ -2953,6 +3083,9 @@ gethex( CONST char **sp, FPI *fpi, Long *exp, Bigint **bp, int sign)
 		return STRTOG_Zero;
 	if (big) {
 		if (esign) {
+#ifdef STRTODG_FOR_PCC
+		  if (! fpi->sudden_underflow)
+#endif
 			switch(fpi->rounding) {
 			  case FPI_Round_up:
 				if (sign)
@@ -3062,6 +3195,12 @@ gethex( CONST char **sp, FPI *fpi, Long *exp, Bigint **bp, int sign)
 		}
 	irv = STRTOG_Normal;
 	if (e < fpi->emin) {
+#ifdef STRTODG_FOR_PCC
+		if (fpi->sudden_underflow) {
+			Bfree(b);
+			goto retz;
+			}
+#endif
 		irv = STRTOG_Denormal;
 		n = fpi->emin - e;
 		if (n >= nbits) {
@@ -3147,3 +3286,32 @@ gethex( CONST char **sp, FPI *fpi, Long *exp, Bigint **bp, int sign)
 	*exp = e;
 	return irv;
 	}
+
+#ifdef STRTODG_FOR_PCC
+/*
+ * Wrapper around gethex() to decode just hexadecimal floating-point
+ * constants, with purposely the same prototype as strtodg().
+ */
+int strhextodg
+#ifdef KR_headers
+	(s00, se, fpi, exp, bits)
+	CONST char *s; char **se; FPI *fpi; Long *exp; ULong *bits;
+#else
+	(CONST char *s, char **se, FPI *fpi, Long *exp, ULong *bits)
+#endif
+{
+	int irv;
+	Bigint *rvb;
+
+	rvb = 0;
+	irv = gethex(&s, fpi, exp, &rvb, 0);
+	if (se)
+		*se = (char *)s;
+	if (rvb) {
+		copybits(bits, fpi->nbits, rvb);
+		Bfree(rvb);
+	}
+	return irv;
+}
+#endif
+#endif /*SOFTFLOAT*/

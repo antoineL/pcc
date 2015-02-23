@@ -277,7 +277,8 @@ resw(TWORD t, int rv)
 	return 0;
 }
 
-#ifndef SOFTFLOAT
+//#ifndef SOFTFLOAT
+#if !defined SOFTFLOAT && !defined SOFTFLOAT_CONSTANT
 
 static long double
 typround(long double dc, char *e, TWORD *tw)
