@@ -29,6 +29,35 @@
 
 /*	this file contains code which is dependent on the target machine */
 
+
+/*
+ * Description of floating-point types.
+ */
+#if defined(_MSC_VER) && _MSC_VER<=1600
+#define FS(x)
+#else
+#define FS(x) .x =
+#endif
+FPI fpi_pdp10float = {
+	FS(nbits)             27,
+	FS(emin)    1 - 128 - 27, /* bias is 128, and */
+	FS(emax)  255 - 128 - 27, /* the point is leftward of MSB */
+	FS(rounding)     1, /* XXX revise */
+	FS(sudden_underflow) 1, /* no denormals (?) */
+	FS(explicit_one) 1, /* MSB of signficiand is not explicitely stored*/
+	FS(has_inf_nan)  0, /* highest exponent is regular, no INF/NaN */
+	FS(has_neg_zero) 0, /* do not use sign-and-magnitude! */
+	FS(has_radix_16) 0,
+	FS(storage)	36,
+	FS(exp_bias)    128 + 27
+};
+FPI fpi_pdp10double = { 62, 1-128-62,  255-128-62, 1, 1,
+           1, 0, 0, 0,  72,   128+62 };
+FPI fpi_kl10Gsingle = { 24, 1-1024-24, 2047-1024-24, 1, 1,
+           1, 0, 0, 0,  36,   1024+24 };
+FPI fpi_kl10Gdouble = { 59, 1-1024-59, 2047-1024-59, 1, 1,
+           1, 0, 0, 0,  72,   1024+59 };
+
 static int pointp(TWORD t);
 static struct symtab *newfun(char *name, TWORD type);
 
@@ -810,6 +839,7 @@ infld(CONSZ off, int fsz, CONSZ val)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+/* XXX Still need work... */
 	cerror("ninval");
 }
 

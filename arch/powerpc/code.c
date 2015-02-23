@@ -583,6 +583,10 @@ bjobcode(void)
 {
 	DLIST_INIT(&stublist, link);
 	DLIST_INIT(&nlplist, link);
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+	astypnames[DOUBLE] = astypnames[LDOUBLE] = astypnames[ULONGLONG];
+#endif
 }
 
 #ifdef notdef

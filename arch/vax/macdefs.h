@@ -87,6 +87,23 @@
 /*	size in which constants are converted */
 /*	should be long if feasable */
 
+/*
+ * Floating-point types.
+ */
+struct FPI;
+extern struct FPI fpi_Ffloat,
+	fpi_Dfloat,
+	fpi_Gfloat;
+#ifndef notyet
+extern struct FPI fpi_Hfloat;
+#endif
+
+#define FPI_FLOAT	fpi_Ffloat
+#ifndef FPI_DOUBLE
+#define FPI_DOUBLE	fpi_Dfloat
+#endif
+#define FPI_LDOUBLE	FPI_DOUBLE
+
 typedef long long CONSZ;
 typedef unsigned long long U_CONSZ;
 

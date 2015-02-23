@@ -371,10 +371,32 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
 	union { float f; double d; long double l; int i[3]; } u;
+#endif
 
 	switch (p->n_type) {
+#ifdef SOFTFLOAT
+/* soft 32-bit and 64-bit formats are handled directly in inval() */
+#if SZLDOUBLE>64
+	SF sf;
+	int exp;
+
 	case LDOUBLE:
+		sf = p->n_dcon;
+		exp = soft_pack(&sf, LDOUBLE);
+		p->n_lval = (exp & 0x7fff) << 16;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x80000000;
+		p->n_op = ICON;
+		p->n_type = UNSIGNED;
+		p->n_sp = NULL;
+		inval(off, 32, p);
+		p->n_lval = sf.significand;
+		p->n_type = UNSIGNED;
+		inval(off+32, 64, p);
+		break;
+#endif
+#else
 		u.i[2] = 0;
 		u.l = (long double)p->n_dcon;
 #if defined(HOST_LITTLE_ENDIAN)
@@ -396,6 +418,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		u.f = (float)p->n_dcon;
 		printf("\t.long\t0x%x\n", u.i[0]);
 		break;
+#endif
 
 	case LONGLONG:
 	case ULONGLONG:

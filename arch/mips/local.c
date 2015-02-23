@@ -424,7 +424,9 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifndef SOFTFLOAT
         union { float f; double d; int i[2]; } u;
+#endif
         struct symtab *q;
         TWORD t;
 #ifndef USE_GAS
@@ -476,6 +478,13 @@ ninval(CONSZ off, int fsz, NODE *p)
         case USHORT:
 		astypnames[SHORT] = astypnames[USHORT] = "\t.half";
                 return 0;
+/* soft FP 32-bit and 64-bit formats are handled directly in inval() */
+/* Note: the common code generates the IEEE-recommended encoding for NaN.
+ * Recent MIPS processors (> 2012) agree, but ancient ones have the reverse
+ * expectations (so the NaN will be considered as signalling.)
+ * (Recent) GAS supports a directive ".nan 2008" (set flag in ELF.)
+ */
+#ifndef SOFTFLOAT
         case LDOUBLE:
         case DOUBLE:
                 u.d = (double)p->n_dcon;
@@ -491,6 +500,7 @@ ninval(CONSZ off, int fsz, NODE *p)
                 u.f = (float)p->n_dcon;
                 printf("\t.word\t0x%x\n", u.i[0]);
                 break;
+#endif
         default:
                 return 0;
         }

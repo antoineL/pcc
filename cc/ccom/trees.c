@@ -281,10 +281,11 @@ buildtree(int o, NODE *l, NODE *r)
 		     (r->n_op == FCON && FLOAT_ISZERO(r->n_dcon))))
 				goto runtime; /* HW dependent */
 #endif
+		t = (l->n_type > r->n_type ? l->n_type : r->n_type);
 		if (l->n_op == ICON)
-			l->n_dcon = FLOAT_FROM_INT(l->n_lval, l->n_type);
+			l->n_dcon = FLOAT_FROM_INT(l->n_lval, l->n_type, t);
 		if (r->n_op == ICON)
-			r->n_dcon = FLOAT_FROM_INT(r->n_lval, r->n_type);
+			r->n_dcon = FLOAT_FROM_INT(r->n_lval, r->n_type, t);
 		switch(o){
 		case PLUS:
 		case MINUS:
@@ -292,19 +293,18 @@ buildtree(int o, NODE *l, NODE *r)
 		case DIV:
 			switch (o) {
 			case PLUS:
-				l->n_dcon = FLOAT_PLUS(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_PLUS(l->n_dcon, r->n_dcon, t);
 				break;
 			case MINUS:
-				l->n_dcon = FLOAT_MINUS(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_MINUS(l->n_dcon, r->n_dcon, t);
 				break;
 			case MUL:
-				l->n_dcon = FLOAT_MUL(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_MUL(l->n_dcon, r->n_dcon, t);
 				break;
 			case DIV:
-				l->n_dcon = FLOAT_DIV(l->n_dcon, r->n_dcon);
+				l->n_dcon = FLOAT_DIV(l->n_dcon, r->n_dcon, t);
 				break;
 			}
-			t = (l->n_type > r->n_type ? l->n_type : r->n_type);
 			l->n_op = FCON;
 			l->n_type = t;
 			nfree(r);
@@ -827,7 +827,7 @@ concast(NODE *p, TWORD t)
 			}
 		} else if (t <= LDOUBLE) {
 			p->n_op = FCON;
-			p->n_dcon = FLOAT_FROM_INT(val, p->n_type);
+			p->n_dcon = FLOAT_FROM_INT(val, p->n_type, t);
 		}
 	} else { /* p->n_op == FCON */
 		if (t == BOOL) {
