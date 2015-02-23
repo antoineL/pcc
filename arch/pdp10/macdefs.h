@@ -96,6 +96,17 @@
 #define	BOOL_TYPE	INT
 #define	WORD_ADDRESSED
 
+#ifdef SOFTFLOAT
+/*
+ * Floating-point types.
+ */
+struct FPI;
+extern struct FPI fpi_pdp10float,
+	fpi_pdp10double,
+	fpi_kl10Gsingle, /* a.k.a. extended precision */
+	fpi_kl10Gdouble;
+#endif
+
 /*
  * Use large-enough types.
  */

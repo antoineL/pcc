@@ -46,7 +46,8 @@ all: $(DEST)
 OBJS=	builtins.o cgram.o code.o common.o compat.o external.o		\
 	gcc_compat.o init.o inline.o local.o local2.o main.o		\
 	match.o optim.o optim2.o order.o pftn.o reader.o		\
-	regs.o scan.o stabs.o symtabs.o table.o trees.o unicode.o
+	regs.o scan.o softfloat.o stabs.o strtodg.o symtabs.o		\
+	table.o trees.o unicode.o
 
 LOBJS=	mkext.lo common.lo table.lo
 
@@ -150,8 +151,14 @@ regs.o: $(MIPDIR)/regs.c
 scan.o: scan.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ scan.c
 
+softfloat.o: $(srcdir)/softfloat.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $(srcdir)/softfloat.c
+
 stabs.o: $(srcdir)/stabs.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $(srcdir)/stabs.c
+
+strtodg.o: $(srcdir)/strtodg.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $(srcdir)/strtodg.c
 
 symtabs.o: $(srcdir)/symtabs.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $(srcdir)/symtabs.c

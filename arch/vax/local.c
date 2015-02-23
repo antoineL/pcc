@@ -40,6 +40,33 @@ static void r1arg(NODE *p, NODE *q);
 
 /*	this file contains code which is dependent on the target machine */
 
+#ifdef SOFTFLOAT
+/*
+ * Description of floating-point types.
+ */
+FPI fpi_Ffloat = {
+	            24,
+	  1 - 128 - 24, /* bias is 128, and */
+	255 - 128 - 24, /* the point is leftward of MSB */
+	             5, /* VAX rounds ties away, not to even */
+	             1, /* sudden underflow, no denormals */
+	             0, /* MSB of significand is not explicitely stored*/
+	             0, /* highest exponent is regular, no INF/NaN */
+	             0, /* zero with negative sign raises a trap */
+	             0, /* radix is 2, not 16 */
+	            32,
+	      128 + 24
+};
+FPI fpi_Dfloat = { 56, 1-128-56,  255-128-56, 5, 1,
+      0, 0, 0, 0,  64,   128+56 };
+FPI fpi_Gfloat = { 53, 1-1024-53, 2047-1024-53, 5, 1,
+      0, 0, 0, 0,  64,   1024+53 };
+#ifndef notyet
+FPI fpi_Hfloat = { 113, 1-16384-113, 32767-16384-113, 5, 1,
+      0, 0, 0, 0,  128,   16384+113 };
+#endif
+#endif
+
 NODE *
 clocal(p) NODE *p; {
 
@@ -322,21 +349,47 @@ defzero(struct symtab *sp)
  * Do not free the node after use.
  * off is bit offset from the beginning of the aggregate
  * fsz is the number of bits this is referring to
- * XXX - floating point constants may be wrong if cross-compiling.
  */
-/* XXX Cross-compilers alert: Vax floats are PDP-endian... */
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
 #ifdef SOFTFLOAT
+/* Reminder: Vax floats are PDP-endian. */
+	SF sf;
+	int exp;
+
 	switch (p->n_type) {
 	case FLOAT:
-		printf("\t.short\t0%o, 0%o\n", p->n_dcon.fd1, p->n_dcon.fd2);
+		sf = p->n_dcon;
+		exp = soft_pack(&sf, FLOAT);
+		p->n_lval = (sf.significand >> 16) & 0x7f;
+		p->n_lval |= exp << 7;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+		p->n_op = ICON;
+		p->n_type = USHORT;
+		p->n_sp = NULL;
+		inval(off, 16, p);
+		p->n_lval = sf.significand & 0xffff;
+		inval(off+16, 16, p);
 		break;
 	case LDOUBLE:
 	case DOUBLE:
-		printf("\t.short\t0%o, 0%o, 0%o, 0%o\n", p->n_dcon.fd1, p->n_dcon.fd2,
-		    p->n_dcon.fd3, p->n_dcon.fd4);
+		sf = p->n_dcon;
+		exp = soft_pack(&sf, p->n_type);
+		p->n_lval = sf.significand >> 48;
+		p->n_lval &= (1 << (63 - FPI_DOUBLE.nbits)) - 1;
+		p->n_lval |= exp << (63 - FPI_DOUBLE.nbits);
+		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+		p->n_op = ICON;
+		p->n_type = USHORT;
+		p->n_sp = NULL;
+		inval(off, 16, p);
+		p->n_lval = (sf.significand >> 32) & 0xffff;
+		inval(off+16, 16, p);
+		p->n_lval = (sf.significand >> 16) & 0xffff;
+		inval(off+32, 16, p);
+		p->n_lval = sf.significand & 0xffff;
+		inval(off+48, 16, p);
 		break;
 	default:
 		return 0;

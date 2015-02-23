@@ -29,6 +29,31 @@
 
 /*	this file contains code which is dependent on the target machine */
 
+#ifdef SOFTFLOAT
+/*
+ * Description of floating-point types.
+ */
+FPI fpi_pdp10float = {
+	            27,
+	  1 - 128 - 27, /* bias is 128, and */
+	255 - 128 - 27, /* the point is leftward of MSB */
+	             5, /* rounds ties away, not to even */  /* XXX revise */
+	             1, /* sudden underflow, no denormals */
+	             1, /* MSB of significand is explicitely stored */
+	             0, /* highest exponent is regular, no INF/NaN */
+	             0, /* no -0, does not even use sign-and-magnitude! */
+	             0, /* radix is 2, not 16 */
+	            36,
+	      128 + 27
+};
+FPI fpi_pdp10double = { 62, 1-128-62,  255-128-62, 5, 1,
+           1, 0, 0, 0,  72,   128+62 };
+FPI fpi_kl10Gsingle = { 24, 1-1024-24, 2047-1024-24, 5, 1,
+           1, 0, 0, 0,  36,   1024+24 };
+FPI fpi_kl10Gdouble = { 59, 1-1024-59, 2047-1024-59, 5, 1,
+           1, 0, 0, 0,  72,   1024+59 };
+#endif
+
 static int pointp(TWORD t);
 static struct symtab *newfun(char *name, TWORD type);
 
@@ -810,6 +835,7 @@ infld(CONSZ off, int fsz, CONSZ val)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+/* XXX Still need work... */
 	cerror("ninval");
 }
 

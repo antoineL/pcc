@@ -393,6 +393,10 @@ clocal(NODE *p)
 		m = p->n_type;
 
 		if (o == ICON) {
+/*
+ * XXX Looks like this code is no longer needed here;
+ * see revision 1.147 of arch/i386/local.c, 2011-06-02 16:40:56 +0200
+ */
 			CONSZ val = l->n_lval;
 
 			if (ISPTR(l->n_type) && !nncon(l))
@@ -436,7 +440,7 @@ clocal(NODE *p)
 			case DOUBLE:
 			case FLOAT:
 				l->n_op = FCON;
-				l->n_dcon = val;
+				l->n_dcon = FLOAT_FROM_INT(val, l->n_type, m);
 				break;
 			default:
 				cerror("unknown type %d", m);
@@ -447,9 +451,9 @@ clocal(NODE *p)
 			return l;
 		} else if (l->n_op == FCON) {
 			if (p->n_type == BOOL)
-				l->n_lval = l->n_dcon != 0.0;
+				l->n_lval = !FLOAT_ISZERO(l->n_dcon);
 			else
-				l->n_lval = l->n_dcon;
+				l->n_lval =  FLOAT_TO_INT(l->n_dcon, m);
 			l->n_sp = NULL;
 			l->n_op = ICON;
 			l->n_type = m;
@@ -658,6 +662,28 @@ spalloc(NODE *t, NODE *p, OFFSZ off)
 int
 ninval(CONSZ off, int fsz, NODE *p)
 {
+#ifdef SOFTFLOAT
+#if SZLDOUBLE>64
+	SF sf;
+	int exp;
+
+	if (p->n_type == LDOUBLE) {
+		sf = p->n_dcon;
+		exp = soft_pack(&sf, LDOUBLE);
+		p->n_lval = sf.significand;
+		p->n_op = ICON;
+		p->n_type = ULONG;
+		p->n_sp = NULL;
+		inval(off, 64, p);
+		p->n_lval = exp & 0x7fff;
+		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+		inval(off+64, 64, p);
+		return 1;
+	}
+#endif
+	/* soft 32-bit and 64-bit formats are handled directly in inval() */
+	return 0;
+#else
 	union { float f; double d; long double l; int i[3]; } u;
 
 	switch (p->n_type) {
@@ -688,6 +714,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 		return 0;
 	}
 	return 1;
+#endif
 }
 
 /* make a name look like an external name in the local machine */
