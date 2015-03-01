@@ -30,6 +30,7 @@
 #ifdef SOFTFLOAT_CONSTANT
 
 #include "pass1.h"
+#include <assert.h>
 
 #ifndef Long
 #define Long int
@@ -47,29 +48,90 @@ int strhextodg (const char*, char**, FPI*, Long*, ULong*);
 
 /* IEEE binary formats, and their interchange format encodings */
 FPI fpi_binary16 = { 11, 1-15-11+1,  30-15-11+1, 1, 0,
-           0, 1, 1,  16,   15+11-1, 0,0 };
+           0, 1, 1,  16,   15+11-1 };
 FPI fpi_binary32 = { 24, 1-127-24+1,  254-127-24+1, 1, 0,
-           0, 1, 1,  32,   127+24-1, 0,0 };
+           0, 1, 1,  32,   127+24-1 };
 FPI fpi_binary64 = { 53, 1-1023-53+1, 2046-1023-53+1, 1, 0,
-           0, 1, 1,  64,   1023+53-1, 0,0 };
+           0, 1, 1,  64,   1023+53-1 };
 #ifndef notyet
 FPI fpi_binary128 = { 113, 1-16383-113+1, 32766-16383-113+1, 1, 0,
-           0, 1, 1,   128,   16383+113-1, 0,0 };
+           0, 1, 1,   128,   16383+113-1 };
 #endif
 /* IEEE double extended in its usual form, for example Intel 387 */
 FPI fpi_binaryx80 = { 64, 1-16383-64+1, 32766-16383-64+1, 1, 0,
-           1, 1, 1,   80,   16383+64-1, 0,0 };
+           1, 1, 1,   80,   16383+64-1 };
 
 #if defined(_MSC_VER) && _MSC_VER<=1600
 #define TS(x)
 #else
 #define TS(x) [x-FLOAT] =
 #endif
-static FPI * fpis[3] = {
+FPI * fpis[3] = {
 	TS(FLOAT)	&FPI_FLOAT,
 	TS(DOUBLE)	&FPI_DOUBLE,
 	TS(LDOUBLE)	&FPI_LDOUBLE
 };
+
+/*
+ * Prepare a SF value for use in packed (interchange) format.
+ * Expect a correctly rounded (for the target type) representation.
+ * Returns the combined sign+exponent part, ready to be shifted.
+ *
+ * The .significand bits are left in place, ready to be used by
+ * the endian-aware code. The MSB one is still there.
+ * SF_NaN is expanded into the IEEE754:2008 default representation
+ * (1 as most significant bit, rest all zeroes); if not appropriate
+ * for the target, the calling code should replace it with SF_NaNbits
+ * with the adequate bits into the .significand member.
+ */
+int
+packIEEE(SF *psf, FPI *fpi)
+{
+	int biasedexp;
+
+	/* XXX normalize? */
+	biasedexp = psf->exponent + fpi->exp_bias;
+	switch(psf->kind & SF_kmask) {
+	  case SF_Zero:
+		psf->significand = 0;
+		biasedexp = 0;
+		break;
+
+	  case SF_Normal:
+		assert((psf->significand >> (fpi->nbits-1)) == 1);
+		assert(psf->exponent >= fpi->emin);
+		assert(psf->exponent <= fpi->emax);
+		break;
+
+	  case SF_Denormal:
+		assert(! fpi->sudden_underflow);
+		assert((psf->significand >> (fpi->nbits-1)) == 0);
+		assert(psf->exponent == fpi->emin);
+		biasedexp = 0;
+		break;
+
+	  case SF_Infinite:
+		assert(fpi->has_inf_nan);
+		psf->significand = 1ull << (fpi->nbits-1);
+		biasedexp = fpi->emax - fpi->exp_bias + 1;
+		break;
+
+	  case SF_NoNumber:
+		/* Can it happen? Debug_Warns? ICE? */
+		/* Let decay as NaN */
+	  case SF_NaN:
+		psf->significand = 1ull << (fpi->nbits-2);
+		/* FALLTHROUGH */
+	  case SF_NaNbits:
+		assert(fpi->has_inf_nan);
+		biasedexp = fpi->emax - fpi->exp_bias + 1;
+		break;
+	}
+	if (psf->kind & SF_Neg)
+		biasedexp |= 1 << (fpi->storage - fpi->nbits - fpi->explicit_one);
+	return biasedexp;
+
+}
 
 static char*
 suffix(char *str, int *im, TWORD *tw)
@@ -108,89 +170,6 @@ suffix(char *str, int *im, TWORD *tw)
 	return suf;
 }
 
-CONSZ
-packedIEEE(int k, FPI *fpi, Long expt, ULong *bits)
-{
-	CONSZ m;
-	ULong bits0, bits1;
-
-	bits0 = bits[0];
-	bits1 = fpi->nbits <= 32 ? 0 : bits[1];
-	m = bits[0] | ((U_CONSZ)bits1<<32);
-	m &= ((U_CONSZ)1<<(fpi->nbits-1)) - 1;
-
-	switch(k & SF_kmask) {
-	  case SF_NoNumber:
-	  case SF_Zero:
-		m = 0;
-		break;
-
-	  case SF_Normal:
-/* if (explicit_one) */
-			m |= (U_CONSZ)1<<(fpi->nbits-1);
-		break;
-
-	  case SF_Denormal:
-		if (fpi->sudden_underflow)
-			/* XXX shouldn't happen; warns? */
-			m = 0;
-		break;
-
-	  case SF_Infinite:
-		m = 0;
-		break;
-
-	  case SF_NaN:
-/* if (quiet_nan_msb) */
-			m = (U_CONSZ)1<<(fpi->nbits-2);
-/* else -3 ??? */
-		break;
-
-/*
-	  case SF_NaNbits:
-		u.L[_0] = 0x7ff00000 | bits[1];
-		u.L[_1] = bits[0];
- */
-	  }
-/*
-	if (k & SF_Neg)
-		u.L[_0] |= 0x80000000L;
- */
-	return m;
-}
-
-int
-ieeeval(CONSZ off, int fsz, NODE *p)
-{
-	TWORD t, ti;
-	FPI *fpi;
-	int bias;
-	int sz, parts, n_UL;
-
-	if (p->n_op != FCON) {
-		uerror("FP constant required");
-		return 0;
-	}
-	t = p->n_type;
-	sz = (int)tsize(t,0,0);
-	if (t<FLOAT || t>LDOUBLE) {
-		uerror("Botch in FP constant type");
-		return 0;
-	}
-	fpi = fpis[t-FLOAT];
-	bias = 1 - fpi->emin - fpi->nbits+1;
-	n_UL = (fpi->nbits + 31) >> 5;
-	ti = sz % (int)tsize(ULONGLONG,0,0) == 0 ? ULONGLONG :
-	     sz % (int)tsize(ULONG,0,0) == 0 ? ULONG :
-	     sz % (int)tsize(UNSIGNED,0,0) == 0 ? UNSIGNED :
-	     sz % (int)tsize(USHORT,0,0) == 0 ? USHORT : UCHAR;
-	parts = sz / (int)tsize(t,0,0);
-	printf("%s ",astypnames[t]);
-
-	printf("\n");
-	return 1;
-}
-
 static NODE *
 f3(char *str, int (*strtodg_p)())
 {
@@ -215,7 +194,10 @@ f3(char *str, int (*strtodg_p)())
 #endif
 	p = block(FCON, NIL, NIL, tw, 0, 0);
 	p->n_dcon.kind = k;
-	p->n_dcon.significand = bits[0] | ((U_CONSZ)bits[1] << 32);
+	p->n_dcon.significand = bits[0];
+	if (fpi->nbits > 32)
+		p->n_dcon.significand |= ((U_CONSZ)bits[1] << 32);
+#if 0
 	switch(k & SF_kmask) {
 	  case SF_Zero:
 		p->n_dcon.exponent = p->n_dcon.significand = 0;
@@ -223,9 +205,6 @@ f3(char *str, int (*strtodg_p)())
 
 	  case SF_Denormal:
 		/* XXX always expt=emin? */
-		p->n_dcon.exponent = expt-1;
-		break;
-
 	  case SF_Normal:
 		p->n_dcon.exponent = expt;
 		break;
@@ -242,6 +221,9 @@ f3(char *str, int (*strtodg_p)())
 		p->n_dcon.exponent = fpi->emax+1;
 		break;
 	}
+#else
+	p->n_dcon.exponent = expt;
+#endif
 	return p;
 }
 

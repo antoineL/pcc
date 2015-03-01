@@ -227,8 +227,8 @@ inval(CONSZ off, int fsz, NODE *p)
 	    p->n_left->n_left->n_right->n_op == FCON) {
 		NODE *r = p->n_left->n_right->n_right;
 		int sz = (int)tsize(r->n_type, r->n_df, r->n_ap);
-		ninval(off, sz, p->n_left->n_left->n_right);
-		ninval(off, sz, r);
+		inval(off, sz, p->n_left->n_left->n_right);
+		inval(off, sz, r);
 		tfree(p);
 		return;
 	}
@@ -267,6 +267,34 @@ inval(CONSZ off, int fsz, NODE *p)
 				    sp->soname : exname(sp->sname));
 		}
 		printf("\n");
+#ifdef SOFTFLOAT
+	} 
+	else if (t <= LDOUBLE) {
+		SF sf;
+		FPI *fpi;
+		TWORD ti;
+		int exp, fracbits;
+
+		if (p->n_op != FCON || t<FLOAT || t>LDOUBLE) {
+			uerror("Botch in FP constant init");
+			return;
+		}
+		if (strcmp(astypnames[t],"ERR")==0) {
+			cerror("FP type %d init should be handled in MD part", (int)t);
+			return;
+		}
+		printf("%s ",astypnames[t]);
+		fpi = fpis[t-FLOAT];
+		sf = p->n_dcon;
+		exp = packIEEE(&sf, fpi);
+		fracbits = fpi->nbits-1;
+		if (fpi->explicit_one) ++fracbits;
+		val = sf.significand & ((U_CONSZ)1<<fracbits)-1;
+		val |= exp << fracbits;
+		/* XXX oring sign might be unnecessary */
+		if (sf.kind & SF_Neg) val |= ((U_CONSZ)1<<(fpi->storage-1));
+		printf(CONFMT "\n", val);
+#endif
 	} else
 		cerror("inval: unhandled type %d", (int)t);
 }

@@ -426,6 +426,9 @@ bjobcode(void)
 	DLIST_INIT(&stublist, link);
 	DLIST_INIT(&nlplist, link);
 #endif
+#ifdef SOFTFLOAT
+	astypnames[FLOAT] = astypnames[UNSIGNED];
+#else
 #if defined(__GNUC__) || defined(__PCC__)
 	/* Be sure that the compiler uses full x87 */
 	/* XXX cross-compiling will fail here */
@@ -433,6 +436,7 @@ bjobcode(void)
 	__asm("fstcw (%0)" : : "r"(&fcw));
 	fcw |= 0x300;
 	__asm("fldcw (%0)" : : "r"(&fcw));
+#endif
 #endif
 }
 

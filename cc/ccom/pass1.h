@@ -428,8 +428,6 @@ typedef struct FPI {
 	int has_neg_zero:1;
 	int storage;
 	int exp_bias;
-	int internal_pad1; /* padding bits between significand and exponent */
-	int internal_pad2; /* padding bits inside signific.at quad boundary */
 } FPI;
 
 enum {	/* FPI.rounding values: same as FLT_ROUNDS */
@@ -444,7 +442,9 @@ extern FPI fpi_binary32,
 #ifndef notyet
 	fpi_binary128,
 #endif
+	fpi_binary16,
 	fpi_binaryx80;
+extern FPI * fpis[3]; /* FLOAT, DOUBLE, LDOUBLE, respectively */
 
 SF soft_neg(SF);
 #ifdef notyet
@@ -473,7 +473,9 @@ SF soft_cast(CONSZ v, TWORD);
 CONSZ soft_val(SF);
 #define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
 #endif
-
+#ifdef IEEESOFTFLOAT
+int packIEEE(SF *, FPI *);
+#endif
 #ifdef notyet /* XXX */
 #define FLOAT_NEG(sf)		soft_neg(sf)
 #define	FLOAT_CAST(x,t)		(x) /* XXX missing work */

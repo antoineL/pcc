@@ -929,6 +929,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	union { float f; double d; long double l; int i[3]; } u;
 #else
 	SF sf;
+	int exp;
 #endif
 	int i;
 
@@ -944,8 +945,9 @@ ninval(CONSZ off, int fsz, NODE *p)
 		break;
 	case LDOUBLE:
 #ifdef SOFTFLOAT
+#if SZLDOUBLE>64
 		sf = p->n_dcon;
-		/* XXX normalize, expand QNaN into LLONG_MIN */
+		exp = packIEEE(&sf, &FPI_LDOUBLE);
 		p->n_lval = sf.significand & 0xffffffff;
 		p->n_op = ICON;
 		p->n_type = UNSIGNED;
@@ -953,9 +955,22 @@ ninval(CONSZ off, int fsz, NODE *p)
 		inval(off, 32, p);
 		p->n_lval = sf.significand >> 32;
 		inval(off+32, 32, p);
-		p->n_lval = (sf.exponent + FPI_LDOUBLE.exp_bias) & 0x7fff;
+		p->n_lval = exp & 0x7fff;
 		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+#if SZLDOUBLE==80
+		p->n_type = SHORT;
+		inval(off+64, 16, p);
+#else /* 96 or 128 */
 		inval(off+64, 32, p);
+#endif
+#if SZLDOUBLE==128
+		p->n_lval = 0;
+		inval(off+96, 32, p);
+#endif
+		break;
+#else /* SZLDOUBLE==64 */
+		/*FALLTHROUGH*/
+#endif
 #else
 		u.i[2] = 0;
 		u.l = (long double)p->n_dcon;
@@ -965,19 +980,19 @@ ninval(CONSZ off, int fsz, NODE *p)
 #else
 		printf("\t.long\t%d,%d,%d\n", u.i[0], u.i[1], u.i[2] & 0177777);
 #endif
-#endif
 		break;
+#endif
 	case DOUBLE:
 #ifdef SOFTFLOAT
 		sf = p->n_dcon;
-		/* XXX normalize, expand QNaN into LLONG_MIN>>11 */
+		exp = packIEEE(&sf, &FPI_DOUBLE);
 		p->n_lval = sf.significand & 0xffffffff;
 		p->n_op = ICON;
 		p->n_type = UNSIGNED;
 		p->n_sp = NULL;
 		inval(off, 32, p);
 		p->n_lval = (sf.significand >> 32) & 0xfffff;
-		p->n_lval |= ((sf.exponent+FPI_DOUBLE.exp_bias)&0x7ff) << 20;
+		p->n_lval |= exp << 20;
 		if (sf.kind & SF_Neg) p->n_lval |= 0x80000000;
 		inval(off+32, 32, p);
 #else
@@ -989,22 +1004,12 @@ ninval(CONSZ off, int fsz, NODE *p)
 #endif
 #endif
 		break;
+#ifndef SOFTFLOAT /* soft 32-bit float are handled directly in inval() */
 	case FLOAT:
-#ifdef SOFTFLOAT
-		sf = p->n_dcon;
-		/* XXX normalize, expand QNaN into 0x400000 */
-		p->n_lval = sf.significand & 0x7fffff;
-		p->n_op = ICON;
-		p->n_type = UNSIGNED;
-		p->n_sp = NULL;
-		p->n_lval |= ((sf.exponent+FPI_FLOAT.exp_bias) & 0x7f) << 23;
-		if (sf.kind & SF_Neg) p->n_lval |= 0x80000000;
-		inval(off+64, 32, p);
-#else
 		u.f = (float)p->n_dcon;
 		printf("\t.long\t%d\n", u.i[0]);
-#endif
 		break;
+#endif
 	default:
 		return 0;
 	}

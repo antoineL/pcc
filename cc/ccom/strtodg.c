@@ -31,7 +31,7 @@ done
  *
  * Notes:
  * . An important distinction to do is between the target architecture,
- * which is generally described throgh the FPI structure; and the host
+ * which is generally described through the FPI structure; and the host
  * double floating-point, which is highly relied upon; variances
  * between the host implementations (IEEE or VAX, little- or big-endian)
  * should be detected at compile time, and are discrimated through the
@@ -3190,6 +3190,9 @@ gethex( CONST char **sp, FPI *fpi, Long *exp, Bigint **bp, int sign)
  ovfl1:
 #ifndef NO_ERRNO
 		errno = ERANGE;
+#endif
+#ifdef STRTODG_FOR_PCC
+		*exp = fpi->emax + 1;
 #endif
 		return STRTOG_Infinite | STRTOG_Overflow | STRTOG_Inexhi;
 		}
