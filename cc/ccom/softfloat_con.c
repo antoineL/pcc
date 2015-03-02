@@ -85,7 +85,7 @@ FPI * fpis[3] = {
  * with the adequate bits into the .significand member.
  */
 int
-packIEEE(SF *psf, FPI *fpi)
+soft_pack(SF *psf, FPI *fpi)
 {
 	int biasedexp;
 

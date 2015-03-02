@@ -947,7 +947,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 #ifdef SOFTFLOAT
 #if SZLDOUBLE>64
 		sf = p->n_dcon;
-		exp = packIEEE(&sf, &FPI_LDOUBLE);
+		exp = soft_pack(&sf, &FPI_LDOUBLE);
 		p->n_lval = sf.significand & 0xffffffff;
 		p->n_op = ICON;
 		p->n_type = UNSIGNED;
@@ -985,7 +985,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	case DOUBLE:
 #ifdef SOFTFLOAT
 		sf = p->n_dcon;
-		exp = packIEEE(&sf, &FPI_DOUBLE);
+		exp = soft_pack(&sf, &FPI_DOUBLE);
 		p->n_lval = sf.significand & 0xffffffff;
 		p->n_op = ICON;
 		p->n_type = UNSIGNED;

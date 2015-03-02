@@ -272,7 +272,6 @@ inval(CONSZ off, int fsz, NODE *p)
 	else if (t <= LDOUBLE) {
 		SF sf;
 		FPI *fpi;
-		TWORD ti;
 		int exp, fracbits;
 
 		if (p->n_op != FCON || t<FLOAT || t>LDOUBLE) {
@@ -286,7 +285,7 @@ inval(CONSZ off, int fsz, NODE *p)
 		printf("%s ",astypnames[t]);
 		fpi = fpis[t-FLOAT];
 		sf = p->n_dcon;
-		exp = packIEEE(&sf, fpi);
+		exp = soft_pack(&sf, fpi);
 		fracbits = fpi->nbits-1;
 		if (fpi->explicit_one) ++fracbits;
 		val = sf.significand & ((U_CONSZ)1<<fracbits)-1;

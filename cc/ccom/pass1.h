@@ -474,8 +474,9 @@ CONSZ soft_val(SF);
 #define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
 #endif
 #ifdef IEEESOFTFLOAT
-int packIEEE(SF *, FPI *);
+int packIEEE(SF *, struct FPI *);
 #endif
+int soft_pack(SF *, FPI *);
 #ifdef notyet /* XXX */
 #define FLOAT_NEG(sf)		soft_neg(sf)
 #define	FLOAT_CAST(x,t)		(x) /* XXX missing work */

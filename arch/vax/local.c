@@ -40,6 +40,35 @@ static void r1arg(NODE *p, NODE *q);
 
 /*	this file contains code which is dependent on the target machine */
 
+/*
+ * Description of floating-point types.
+ */
+#if defined(_MSC_VER) && _MSC_VER<=1600
+#define FS(x)
+#else
+#define FS(x) .x =
+#endif
+FPI fpi_Ffloat = {
+	FS(nbits)             24,
+	FS(emin)    1 - 128 - 24, /* bias is 128, and */
+	FS(emax)  255 - 128 - 24, /* the point is leftward of MSB */
+	FS(rounding)     1, /* not exactly: VAX rounds ties up, not to even*/
+	FS(sudden_underflow) 1, /* no denormals */
+	FS(explicit_one) 0, /* MSB of signficiand is not explicitely stored*/
+	FS(has_inf_nan)  0, /* highest exponent is regular, no INF/NaN */
+	FS(has_neg_zero) 0, /* zero with negative sign raises a trap */
+	FS(storage)	32,
+	FS(exp_bias)    128 + 24
+};
+FPI fpi_Dfloat = { 56, 1-128-56,  255-128-56, 1, 1,
+         0, 0, 0,  64,   128+56 };
+FPI fpi_Gfloat = { 53, 1-1024-53, 2047-1024-53, 1, 1,
+         0, 0, 0,  64,   1024+53 };
+#ifndef notyet
+FPI fpi_Hfloat = { 113, 1-16384-113, 32767-16384-113, 1, 1,
+         0, 0, 0,  128,   16384+113 };
+#endif
+
 NODE *
 clocal(p) NODE *p; {
 
@@ -334,7 +363,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	switch (p->n_type) {
 	case FLOAT:
 		sf = p->n_dcon;
-		exp = packIEEE(&sf, &FPI_FLOAT);
+		exp = soft_pack(&sf, &FPI_FLOAT);
 		p->n_lval = (sf.significand >> 16) & 0x7f;
 		p->n_lval |= exp << 7;
 		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
@@ -348,7 +377,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	case LDOUBLE:
 	case DOUBLE:
 		sf = p->n_dcon;
-		exp = packIEEE(&sf, &FPI_DOUBLE);
+		exp = soft_pack(&sf, &FPI_DOUBLE);
 		p->n_lval = sf.significand >> 48;
 		p->n_lval &= (1 << (63 - FPI_DOUBLE.nbits)) - 1;
 		p->n_lval |= exp << (63 - FPI_DOUBLE.nbits);
