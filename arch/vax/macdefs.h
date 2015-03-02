@@ -87,6 +87,39 @@
 /*	size in which constants are converted */
 /*	should be long if feasable */
 
+/*
+ * Floating-point types.
+ */
+#if defined(_MSC_VER) && _MSC_VER<=1600
+#define FS(x)
+#else
+#define FS(x) .x =
+#endif
+FPI fpi_Ffloat = {
+	FS(nbits)             24,
+	FS(emin)    1 - 128 - 24, /* bias is 128, and */
+	FS(emax)  255 - 128 - 24, /* the point is leftward of MSB */
+	FS(rounding)     1, /* not exactly: VAX rounds ties up, not to even*/
+	FS(sudden_underflow) 1, /* no denormals */
+	FS(explicit_one) 0, /* MSB of signficiand is not explicitely stored*/
+	FS(has_inf_nan)  0, /* highest exponent is regular, no INF/NaN */
+	FS(has_neg_zero) 0, /* zero with negative sign raises a trap */
+	FS(storage)	32,
+	FS(exp_bias)    128 + 24
+};
+FPI fpi_Dfloat = { 56, 1-128-56,  255-128-56, 1, 1,
+         0, 0, 0,  64,   128+56 };
+FPI fpi_Gfloat = { 53, 1-1024-53, 2047-1024-53, 1, 1,
+         0, 0, 0,  64,   1024+53 };
+#ifndef notyet
+FPI fpi_Hfloat = { 113, 1-16384-113, 32767-16384-113, 1, 1,
+         0, 0, 0,  128,   16384+113 };
+#endif
+
+#define FPI_FLOAT	fpi_Ffloat
+#define FPI_DOUBLE	fpi_Dfloat
+#define FPI_LDOUBLE	fpi_Dfloat
+
 typedef long long CONSZ;
 typedef unsigned long long U_CONSZ;
 
