@@ -447,7 +447,7 @@ extern FPI fpi_binary32,
 extern FPI * fpis[3]; /* FLOAT, DOUBLE, LDOUBLE, respectively */
 
 SF soft_neg(SF);
-#ifdef notyet
+#ifndef FDFLOAT
 SF soft_cast(SF, TWORD);
 #else
 /* XXX mixed casts between float types and conversions from integers */
@@ -464,7 +464,7 @@ int soft_cmp_gt(SF, SF);
 int soft_cmp_le(SF, SF);
 int soft_cmp_lt(SF, SF);
 int soft_isz(SF);
-#ifdef notyet
+#ifndef FDFLOAT
 SF soft_from_int(CONSZ, TWORD);
 CONSZ soft_to_int(SF, TWORD);
 #else
@@ -473,13 +473,13 @@ SF soft_cast(CONSZ v, TWORD);
 CONSZ soft_val(SF);
 #define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
 #endif
-#ifdef IEEESOFTFLOAT
-int packIEEE(SF *, struct FPI *);
-#endif
 int soft_pack(SF *, FPI *);
-#ifdef notyet /* XXX */
 #define FLOAT_NEG(sf)		soft_neg(sf)
+#ifndef FDFLOAT
+#define	FLOAT_CAST(x,t)		soft_cast(x,t)
+#else
 #define	FLOAT_CAST(x,t)		(x) /* XXX missing work */
+#endif
 #define	FLOAT_FROM_INT(v,t)	soft_from_int(v, t)
 #define	FLOAT_TO_INT(sf,t)	soft_to_int(sf, t)
 #define	FLOAT_PLUS(x1,x2)	soft_plus(x1, x2)
@@ -493,24 +493,6 @@ int soft_pack(SF *, FPI *);
 #define FLOAT_GT(x1,x2)		soft_cmp_gt(x1, x2)
 #define FLOAT_LE(x1,x2)		soft_cmp_le(x1, x2)
 #define FLOAT_LT(x1,x2)		soft_cmp_lt(x1, x2)
-#else
-SF sfzero;
-#define	FLOAT_NEG(sf)		((sf).kind ^= SF_Neg, (sf))
-#define	FLOAT_CAST(sf,t)	(sf) /* XXX missing work */
-#define	FLOAT_FROM_INT(v,t)	(sfzero.significand = (v), sfzero) /* XXX missing work */
-#define	FLOAT_TO_INT(sf,t)	((sf).significand) /* XXX missing work */
-#define	FLOAT_PLUS(x1,x2)	(x1) /* XXX missing work */
-#define	FLOAT_MINUS(x1,x2)	(x1) /* XXX missing work */
-#define	FLOAT_MUL(x1,x2)	(x1) /* XXX missing work */
-#define	FLOAT_DIV(x1,x2)	(x1) /* XXX missing work */
-#define	FLOAT_ISZERO(sf)	(((sf).kind & SF_kmask) == SF_Zero)
-#define FLOAT_EQ(x1,x2)		((x1).significand == (x2).significand) /* XXX */
-#define FLOAT_NE(x1,x2)		((x1).significand != (x2).significand) /* XXX */
-#define FLOAT_GE(x1,x2)		((x1).significand >= (x2).significand) /* XXX */
-#define FLOAT_GT(x1,x2)		((x1).significand >  (x2).significand) /* XXX */
-#define FLOAT_LE(x1,x2)		((x1).significand <= (x2).significand) /* XXX */
-#define FLOAT_LT(x1,x2)		((x1).significand <  (x2).significand) /* XXX */
-#endif
 #else
 #define	FLOAT_NEG(p)		-(p)
 #define	FLOAT_CAST(p,v)		((v) == FLOAT ? (float)(p) : \
