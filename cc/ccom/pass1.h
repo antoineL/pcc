@@ -403,9 +403,9 @@ enum {	/* SF.kind values; same as STRTODG_* values */
 	SF_Normal	= 1,
 	SF_Denormal	= 2,
 	SF_Infinite	= 3,
-	SF_NaN		= 4,
-	SF_NaNbits	= 5,
-	SF_NoNumber	= 6,
+	SF_NaN		= 4, /* default quiet NaN */
+	SF_NaNbits	= 5, /* (not used) */
+	SF_NoNumber	= 6, /* signaling NaN */
 	SF_kmask	= 7,
 
 	/* The following may be or-ed into one of the above values. */
@@ -431,21 +431,23 @@ typedef struct FPI {
 } FPI;
 
 enum {	/* FPI.rounding values: same as FLT_ROUNDS */
-	FPI_Round_zero = 0,
-	FPI_Round_near = 1,
-	FPI_Round_up = 2,
-	FPI_Round_down = 3
+	FPI_Round_zero = 0,	/* same meaning as FE_TOWARDZERO */
+	FPI_Round_near = 1,	/* same meaning as FE_TONEAREST */
+	FPI_Round_up = 2,	/* same meaning as FE_UPWARD */
+	FPI_Round_down = 3	/* same meaning as FE_DOWNWARD */
 };
 
-extern FPI fpi_binary32,
+extern FPI * fpis[3], /* FLOAT, DOUBLE, LDOUBLE, respectively */
+	/* IEEE754 binary formats, and their interchange format encodings: */
+	fpi_binary32,
 	fpi_binary64,
 #ifndef notyet
 	fpi_binary128,
 #endif
-	fpi_binary16,
-	fpi_binaryx80;
-extern FPI * fpis[3]; /* FLOAT, DOUBLE, LDOUBLE, respectively */
+	fpi_binary16,	/* IEEE 754:2008 "half-precision" */
+	fpi_binaryx80;	/* usual IEEE double extended */
 
+int soft_pack(SF *, TWORD);
 SF soft_neg(SF);
 #ifndef FDFLOAT
 SF soft_cast(SF, TWORD);
@@ -465,6 +467,11 @@ int soft_cmp_le(SF, SF);
 int soft_cmp_lt(SF, SF);
 int soft_isz(SF);
 #ifndef FDFLOAT
+int soft_isinf(SF);
+int soft_isnan(SF);
+int soft_cmp_unord(SF, SF);
+#endif
+#ifndef FDFLOAT
 SF soft_from_int(CONSZ, TWORD);
 CONSZ soft_to_int(SF, TWORD);
 #else
@@ -473,7 +480,6 @@ SF soft_cast(CONSZ v, TWORD);
 CONSZ soft_val(SF);
 #define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
 #endif
-int soft_pack(SF *, FPI *);
 #define FLOAT_NEG(sf)		soft_neg(sf)
 #ifndef FDFLOAT
 #define	FLOAT_CAST(x,t)		soft_cast(x,t)

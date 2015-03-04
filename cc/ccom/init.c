@@ -285,7 +285,7 @@ inval(CONSZ off, int fsz, NODE *p)
 		printf("%s ",astypnames[t]);
 		fpi = fpis[t-FLOAT];
 		sf = p->n_dcon;
-		exp = soft_pack(&sf, fpi);
+		exp = soft_pack(&sf, t);
 		fracbits = fpi->nbits-1;
 		if (fpi->explicit_one) ++fracbits;
 		val = sf.significand & ((U_CONSZ)1<<fracbits)-1;

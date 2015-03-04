@@ -363,7 +363,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	switch (p->n_type) {
 	case FLOAT:
 		sf = p->n_dcon;
-		exp = soft_pack(&sf, &FPI_FLOAT);
+		exp = soft_pack(&sf, FLOAT);
 		p->n_lval = (sf.significand >> 16) & 0x7f;
 		p->n_lval |= exp << 7;
 		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
@@ -377,7 +377,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	case LDOUBLE:
 	case DOUBLE:
 		sf = p->n_dcon;
-		exp = soft_pack(&sf, &FPI_DOUBLE);
+		exp = soft_pack(&sf, p->n_type);
 		p->n_lval = sf.significand >> 48;
 		p->n_lval &= (1 << (63 - FPI_DOUBLE.nbits)) - 1;
 		p->n_lval |= exp << (63 - FPI_DOUBLE.nbits);

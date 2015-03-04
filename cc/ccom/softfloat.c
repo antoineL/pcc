@@ -32,11 +32,11 @@
 #ifndef PCC_DEBUG
 #define assert(e) ((void)0)
 #else
-#define assert(e) ((e)?cerror("assertion failed " #e " at softfloat:%d",__LINE__):(void)0)
+#define assert(e) (!(e)?cerror("assertion failed " #e " at softfloat:%d",__LINE__):(void)0)
 #endif
 /*
- * Floating point emulation, to not depend on the characteristics and bugs
- * of the host implementation when compiling.
+ * Floating point emulation, to not depend on the characteristics (and bugs)
+ * of the host floating-point implementation when compiling.
  *
  * XXX - assumes that:
  *	- long long is (at least) 64 bits
@@ -367,18 +367,13 @@ floatcon(char *s)
 #else
 
 /*
- * Use parametric floating-point representation, as used in
+ * Use parametric floating-point representation, as used in the package gdtoa
+ * published by David M. Gay and generally available as gdtoa.tgz at
+ * http://www.netlib.org/fp/ ; see also strtodg.c where 
  *
- * 	David M. Gay, "Correctly Rounded Binary-Decimal and
- *	Decimal-Binary Conversions", Numerical Analysis Manuscript
- *	No. 90-10, Bell Labs, Murray Hill, 1990;
- *	http://cm.bell-labs.com/cm/cs/what/ampl/REFS/rounding.ps.gz
- *
- * Arithmetic characteristics are described in struct FPI.
- * The actual numbers are represented (stored) in struct SF.
+ * Arithmetic characteristics are described in struct FPI (explained below);
+ * the actual numbers are represented (stored) in struct SF.
  * Floating-point numbers have fpi->nbits bits.
- * In this implementation, the bits are stored in one large integer
- * (of type CONSZ); this limits the number of bits to 64.
  * These numbers are regarded as integers multiplied by 2^e
  * (i.e., 2 to the power of the exponent e), where e is stored in
  * *exp by strtodg.  The minimum and maximum exponent values fpi->emin
@@ -394,9 +389,9 @@ floatcon(char *s)
  * e = (b-1023) by 52:
  *	fpi->emin = 1 - 1023 - 52
  *	fpi->emax = 1046 - 1023 - 52
- * In the fpi_binary64, we actually write -53 + 1 rather than -52, to
- * emphasize that there are 53 bits including one implicit bit which is
- * at the left of the binary point.
+ * For fpi_binary64 initialization, we actually write -53 + 1 rather than
+ * -52, to emphasize that there are 53 bits including one implicit bit which
+ * is at the left of the binary point.
  * Field fpi->rounding indicates the desired rounding direction, with
  * possible values
  *	FPI_Round_zero = toward 0,
@@ -418,16 +413,19 @@ floatcon(char *s)
  * Fields fpi->has_inf_nan and fpi->has_neg_zero cover the non-IEEE cases
  * of lacking respectively the use of infinities and NaN, and negative zero.
  *
+ * In this implementation, the bits are stored in one large integer
+ * (unsigned long long); this limits the number of bits to 64.
+ *
  * XXX - assumes that:
- *	- (obviously) 2's complement, char are 8 bits
+ *	- (obviously) 2's complement
  *	- long long is (at least) 64 bits
  *	- CONSZ is (at least) 64 bits
- *	- int is at least 32 bits.
- *	- short is 16 bits.
  */
+
 /*
- * The algorithms for the operations were derived from John Hauser's 
- * SoftFloat package (which is also used in libpcc/libsoftfloat.)
+ * API restrictions:
+ *	- type information should be between FLOAT and LDOUBLE
+ * XXX	- operations (+, -, *, /) miss the type
  */
 
 /* XXX explanations about FLT_EVAL_METHOD */
@@ -438,15 +436,16 @@ floatcon(char *s)
 #ifndef ULong
 typedef unsigned Long ULong;
 #endif
-#ifndef UShort
-/* XXX still useful? */
-typedef unsigned short UShort;
+#ifndef ULLong
+typedef unsigned long long ULLong;
 #endif
 
-/* XXX some macros:
-#define ONEZEROES(n) (1ull << (n))
-#define ONES(n) (ONEZEROES(n) | (ONEZEROES(n)-1))
-*/
+#define ONEZEROES(n)	(1ull << (n))
+#define ONES(n) 	(ONEZEROES(n) | (ONEZEROES(n)-1))
+
+/* XXX #define WORKBITS	((int)sizeof(ULLong) * 8) */
+#define WORKBITS	64
+#define NORMALMANT	ONEZEROES(WORKBITS-1)
 
 int strtodg (const char*, char**, FPI*, Long*, ULong*);
 int strhextodg (const char*, char**, FPI*, Long*, ULong*);
@@ -496,6 +495,24 @@ nullsf(void)
 }
 
 /*
+ * The algorithms for the operations were derived from John Hauser's 
+ * SoftFloat package (which is also used in libpcc/libsoftfloat.) 
+ */
+
+struct sig_extra {
+	ULLong sig, extra;
+};
+
+static struct sig_extra
+rshift_extra(ULLong a, ULLong extra, int count)
+{
+	struct sig_extra z;
+	z.sig = a >> count;
+	z.extra = (a << (WORKBITS-count)) | (extra != 0);
+	return z;
+}
+
+/*
  * Conversions.
  */
 
@@ -509,7 +526,7 @@ soft_from_int(CONSZ ll, TWORD t)
 {
 	FPI *fpi;
 	SF rv;
-	unsigned long long normal1;
+	ULLong normal1;
 
 	rv = nullsf();
 	if (ll == 0)
@@ -521,7 +538,8 @@ soft_from_int(CONSZ ll, TWORD t)
 	assert(t>=FLOAT && t<=LDOUBLE);
 /* XXX FLT_EVAL_CONSTANT might force t up */
 	fpi = fpis[t-FLOAT];
-	normal1 = 1ull << (fpi->nbits - 1);
+	normal1 = ONEZEROES(fpi->nbits - 1);
+	assert(rv.significand);
 	while (rv.significand < normal1)
 		rv.significand <<= 1, --rv.exponent;
 	if ((rv.significand & (normal1-1)) != normal1) {
@@ -538,18 +556,35 @@ soft_from_int(CONSZ ll, TWORD t)
  * Explicit cast into some floating-point format, and assigments.
  * Drop precision (rounding correctly) and clamp exponent in range.
  */
-SF
-soft_cast(SF sf, TWORD t)
+typedef int bool;
+
+static SF
+round_extra(SF sf, ULLong extra, TWORD t)
 {
 	FPI *fpi;
-	int exp = sf.exponent;
+	ULLong normal1;
+	int exp = sf.exponent, doinc;
+
+    int roundingMode;
+    bool roundNearEven;
+    ULLong roundIncrement, roundMask, roundBits;
+    bool isTiny, doIncrement;
+    struct sig_extra sig64Extra;
+
 
 	switch(sf.kind & SF_kmask) {
+#ifndef notneeded
+	  case SF_Zero:
+		if (! fpi->has_neg_zero)
+			sf.kind &= ~SF_Neg;
+		/* FALLTHROUGH */
+#endif
 	  default:
 		return sf;
-	/* XXX in fact SF_Nanbits might be affected as well; but representation is not yet fixed!
-	 *   So should choose the representation in order to adapt to this code!
-	 */
+	  case SF_NaNbits:
+		cerror("Unexpected softfloat NaNbits");
+		sf.kind -= SF_NaNbits - SF_NaN;
+		return sf;
 	  case SF_Denormal:
 		assert(SF_Denormal > SF_Normal);
 		sf.kind -= SF_Denormal - SF_Normal;
@@ -557,28 +592,193 @@ soft_cast(SF sf, TWORD t)
 	  case SF_Normal:
 		break;
 	}
-	while (sf.significand < (1ull<<63))
-		sf.significand <<= 1, exp--;
 	assert(t>=FLOAT && t<=LDOUBLE);
 	fpi = fpis[t-FLOAT];
-	if (fpi->nbits < 64) {
-		int excess = 64-fpi->nbits;
-		if (sf.significand & ((1ull << excess)-1)) {
+
+/*
+    roundingMode = softfloat_roundingMode;
+    roundNearEven = (roundingMode == softfloat_round_near_even);
+
+    if ( roundingPrecision == 80 ) goto precision80;
+    if ( roundingPrecision == 64 ) {
+        roundIncrement = UINT64_C( 0x0000000000000400 );
+        roundMask = UINT64_C( 0x00000000000007FF );
+    } else if ( roundingPrecision == 32 ) {
+        roundIncrement = UINT64_C( 0x0000008000000000 );
+        roundMask = UINT64_C( 0x000000FFFFFFFFFF );
+    } else {
+        goto precision80;
+    }
+    sig |= (sigExtra != 0);
+    if ( ! roundNearEven && (roundingMode != softfloat_round_near_maxMag) ) {
+        roundIncrement =
+            (roundingMode
+                 == (sign ? softfloat_round_min : softfloat_round_max))
+                ? roundMask
+                : 0;
+    }
+    roundBits = sig & roundMask;
+    if ( 0x7FFD <= (uint32_t) (exp - 1) ) {
+        if ( exp <= 0 ) {
+            isTiny =
+                   (softfloat_detectTininess
+                        == softfloat_tininess_beforeRounding)
+                || (exp < 0)
+                || (sig <= (uint64_t) (sig + roundIncrement));
+            sig = softfloat_shiftRightJam64( sig, 1 - exp );
+            roundBits = sig & roundMask;
+            if ( isTiny && roundBits ) {
+                softfloat_raiseFlags( softfloat_flag_underflow );
+            }
+            if ( roundBits ) {
+                softfloat_exceptionFlags |= softfloat_flag_inexact;
+            }
+            sig += roundIncrement;
+            exp = ((sig & UINT64_C( 0x8000000000000000 )) != 0);
+            roundIncrement = roundMask + 1;
+            if ( roundNearEven && (roundBits<<1 == roundIncrement) ) {
+                roundMask |= roundIncrement;
+            }
+            sig &= ~roundMask;
+            goto packReturn;
+        }
+        if (
+               (0x7FFE < exp)
+            || ((exp == 0x7FFE) && ((uint64_t) (sig + roundIncrement) < sig))
+        ) {
+            goto overflow;
+        }
+    }
+    if ( roundBits ) softfloat_exceptionFlags |= softfloat_flag_inexact;
+    sig = (uint64_t) (sig + roundIncrement);
+    if ( sig < roundIncrement ) {
+        ++exp;
+        sig = UINT64_C( 0x8000000000000000 );
+    }
+    roundIncrement = roundMask + 1;
+    if ( roundNearEven && (roundBits<<1 == roundIncrement) ) {
+        roundMask |= roundIncrement;
+    }
+    sig &= ~roundMask;
+    if ( ! sig ) exp = 0;
+    goto packReturn;
+ precision80:
+
+
+    doIncrement = (UINT64_C( 0x8000000000000000 ) <= sigExtra);
+    if ( ! roundNearEven && (roundingMode != softfloat_round_near_maxMag) ) {
+        doIncrement =
+            (roundingMode
+                 == (sign ? softfloat_round_min : softfloat_round_max))
+                && sigExtra;
+    }
+ */
+
+	normal1 = ONEZEROES(fpi->nbits - 1);
+
+	assert(sf.significand);
+	while (sf.significand < NORMALMANT)
+/* XXX does not work if extra!=0 */
+		sf.significand <<= 1, exp--;
+	if (fpi->nbits < WORKBITS) {
+		int excess = WORKBITS-fpi->nbits;
+		if (sf.significand & ONES(excess)) {
 			/* precision loss */
 
 			cerror("soft_cast: precision loss");
 		}
+		/* rshift_extra(); */
 		sf.significand >>= excess;
 		exp += excess;
 	}
-	if (exp > fpi->emax) {
-		cerror("soft_cast: overflow");
-	}
-	else if (exp < fpi->emin) {
+
+	if (exp < fpi->emin) {
 		cerror("soft_cast: underflow / denormal");
+
+/*
+            isTiny =
+                   (softfloat_detectTininess
+                        == softfloat_tininess_beforeRounding)
+                || (exp < 0)
+                || ! doIncrement
+                || (sig < UINT64_C( 0xFFFFFFFFFFFFFFFF ));
+            sig64Extra =
+                softfloat_shiftRightJam64Extra( sig, sigExtra, 1 - exp );
+            sig = sig64Extra.v;
+            sigExtra = sig64Extra.extra;
+            if ( isTiny && sigExtra ) {
+                softfloat_raiseFlags( softfloat_flag_underflow );
+            }
+            if ( sigExtra ) softfloat_exceptionFlags |= softfloat_flag_inexact;
+            doIncrement = (UINT64_C( 0x8000000000000000 ) <= sigExtra);
+            if (
+                   ! roundNearEven
+                && (roundingMode != softfloat_round_near_maxMag)
+            ) {
+                doIncrement =
+                    (roundingMode
+                         == (sign ? softfloat_round_min : softfloat_round_max))
+                        && sigExtra;
+            }
+            exp = 0;
+            if ( doIncrement ) {
+                ++sig;
+                sig &=
+                    ~(! (sigExtra & UINT64_C( 0x7FFFFFFFFFFFFFFF ))
+                          & roundNearEven);
+                exp = ((sig & UINT64_C( 0x8000000000000000 )) != 0);
+            }
+*/
+
+	}
+/* XXX also check if emax-1 && maxmantissa && doincrement */
+	else if (exp > fpi->emax) {
+		roundMask = 0;
+overflow:
+		if (fpi->rounding == FPI_Round_zero || fpi->rounding ==
+		    (sf.kind & SF_Neg ? FPI_Round_up : FPI_Round_down)) {
+cerror("soft_cast: overflow but return ?dbl_MAX (should not happen)");
+			sf.kind |= SFEXCP_Overflow | SFEXCP_Inexhi;
+			exp = fpi->emax;
+			sf.significand = ~roundMask;
+			return sf;
+		}
+		else {
+			sf.kind = SF_Infinite | (sf.kind & SF_Neg)
+			    | SFEXCP_Overflow | SFEXCP_Inexhi;
+			sf.significand = ONEZEROES(fpi->nbits-1);
+			exp = fpi->emax+1;
+		}
+	}
+	else {
+
+/*
+    if ( sigExtra ) softfloat_exceptionFlags |= softfloat_flag_inexact;
+    if ( doIncrement ) {
+        ++sig;
+        if ( ! sig ) {
+            ++exp;
+            sig = UINT64_C( 0x8000000000000000 );
+        } else {
+            sig &=
+                ~(! (sigExtra & UINT64_C( 0x7FFFFFFFFFFFFFFF ))
+                      & roundNearEven);
+        }
+    } else {
+        if ( ! sig ) exp = 0;
+    }
+*/
+
 	}
 	sf.exponent = exp;
 	return sf;
+}
+
+
+SF
+soft_cast(SF sf, TWORD t)
+{
+	return round_extra(sf, 0, t);
 }
 
 /*
@@ -588,7 +788,7 @@ soft_cast(SF sf, TWORD t)
 CONSZ
 soft_to_int(SF sf, TWORD t)
 {
-	unsigned long long mant;
+	ULLong mant;
 	int exp = sf.exponent;
 
 	switch(sf.kind & SF_kmask) {
@@ -597,9 +797,9 @@ soft_to_int(SF sf, TWORD t)
 		return 0;
 
 	  case SF_Normal:
-		if (exp < - (int)sizeof(mant) * 8 - 1)
+		if (exp < - WORKBITS - 1)
 			return 0;
-		if (exp < sizeof(mant)*8)
+		if (exp < WORKBITS)
 			break;
 		/* FALLTHROUGH */
 	  case SF_Infinite:
@@ -642,18 +842,170 @@ soft_neg(SF sf)
 	return sf;
 }
 
+/*
+ * Add two numbers of same sign.
+ */
+static SF
+soft_add(SF x1, SF x2, TWORD t)
+{
+	SF rv;
+	struct sig_extra z;
+	int diff;
+
+	if (soft_isinf(x1))
+		return x1;
+	if (soft_isinf(x2) || soft_isz(x1))
+		return x2;
+	if (soft_isz(x2))
+		return x1;
+	assert(x1.significand && x2.significand);
+	while (x1.significand < NORMALMANT)
+		x1.significand <<= 1, x1.exponent--;
+	while (x2.significand < NORMALMANT)
+		x2.significand <<= 1, x2.exponent--;
+	if (x1.exponent - WORKBITS > x2.exponent)
+		return x1;
+	if (x2.exponent - WORKBITS > x1.exponent)
+		return x2;
+	diff = x1.exponent - x2.exponent;
+	if (diff < 0) {
+		if ((x2.kind & SF_kmask) == SF_Denormal)
+			x2.kind -= SF_Denormal - SF_Normal;
+		rv = x2;
+		z = rshift_extra(x1.significand, 0, -diff );
+	}
+	else {
+		if ((x1.kind & SF_kmask) == SF_Denormal)
+			x1.kind -= SF_Denormal - SF_Normal;
+		rv = x1;
+		z = rshift_extra(x2.significand, 0, diff );
+	}
+	rv.significand += z.sig;
+	if (rv.significand < NORMALMANT) {
+		/* target mantissa overflows */
+		z = rshift_extra(rv.significand, z.extra, 1);
+		rv.significand = z.sig | NORMALMANT;
+		++rv.exponent;
+	}
+	return round_extra(rv, z.extra, t);
+}
+
+/*
+ * Substract two positive numbers.
+ */
+static SF
+soft_sub(SF x1, SF x2, TWORD t)
+{
+	cerror("soft_sub");
+	return x1;
+
+/*
+    expDiff = expA - expB;
+    if ( 0 < expDiff ) goto expABigger;
+    if ( expDiff < 0 ) goto expBBigger;
+    if ( expA == 0x7FFF ) {
+        if ( (sigA | sigB) & UINT64_C( 0x7FFFFFFFFFFFFFFF ) ) {
+            goto propagateNaN;
+        }
+        softfloat_raiseFlags( softfloat_flag_invalid );
+        uiZ64 = defaultNaNExtF80UI64;
+        uiZ0  = defaultNaNExtF80UI0;
+        goto uiZ;
+    }
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+    expZ = expA;
+    if ( ! expZ ) expZ = 1;
+    sigExtra = 0;
+    if ( sigB < sigA ) goto aBigger;
+    if ( sigA < sigB ) goto bBigger;
+    uiZ64 =
+        packToExtF80UI64( (softfloat_roundingMode == softfloat_round_min), 0 );
+    uiZ0 = 0;
+    goto uiZ;
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ expBBigger:
+    if ( expB == 0x7FFF ) {
+        if ( sigB & UINT64_C( 0x7FFFFFFFFFFFFFFF ) ) goto propagateNaN;
+        uiZ64 = packToExtF80UI64( signZ ^ 1, 0x7FFF );
+        uiZ0  = UINT64_C( 0x8000000000000000 );
+        goto uiZ;
+    }
+    if ( ! expA ) {
+        ++expDiff;
+        sigExtra = 0;
+        if ( ! expDiff ) goto newlyAlignedBBigger;
+    }
+    sig128 = softfloat_shiftRightJam128( sigA, 0, -expDiff );
+    sigA = sig128.v64;
+    sigExtra = sig128.v0;
+ newlyAlignedBBigger:
+    expZ = expB;
+ bBigger:
+    signZ ^= 1;
+    sig128 = softfloat_sub128( sigB, 0, sigA, sigExtra );
+    goto normRoundPack;
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ expABigger:
+    if ( expA == 0x7FFF ) {
+        if ( sigA & UINT64_C( 0x7FFFFFFFFFFFFFFF ) ) goto propagateNaN;
+        uiZ64 = uiA64;
+        uiZ0  = uiA0;
+        goto uiZ;
+    }
+    if ( ! expB ) {
+        --expDiff;
+        sigExtra = 0;
+        if ( ! expDiff ) goto newlyAlignedABigger;
+    }
+    sig128 = softfloat_shiftRightJam128( sigB, 0, expDiff );
+    sigB = sig128.v64;
+    sigExtra = sig128.v0;
+ newlyAlignedABigger:
+    expZ = expA;
+ aBigger:
+    sig128 = softfloat_sub128( sigA, 0, sigB, sigExtra );
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ normRoundPack:
+    return
+        softfloat_normRoundPackToExtF80(
+            signZ, expZ, sig128.v64, sig128.v0, extF80_roundingPrecision );
+*/
+
+}
+
 SF
 soft_plus(SF x1, SF x2)
 {
-	cerror("soft_plus");
-	return x1;
+	if (soft_isnan(x1))
+		return x1;
+	else if (soft_isnan(x2))
+		return x2;
+	switch (x1.kind & SF_Neg - x2.kind & SF_Neg) {
+	  case SF_Neg - 0:
+		return soft_sub(x2, soft_neg(x1), /*XXX*/LDOUBLE);
+	  case 0 - SF_Neg:
+		return soft_sub(x1, soft_neg(x2), /*XXX*/LDOUBLE);
+	}
+	return soft_add(x1, x2, /*XXX*/LDOUBLE);
 }
 
 SF
 soft_minus(SF x1, SF x2)
 {
-	cerror("soft_minus");
-	return x1;
+	if (soft_isnan(x1))
+		return x1;
+	else if (soft_isnan(x2))
+		return x2;
+	if ((x1.kind & SF_Neg) != (x2.kind & SF_Neg))
+		return soft_add(x1, soft_neg(x2), /*XXX*/LDOUBLE);
+	else if (x1.kind & SF_Neg)
+		return soft_sub(soft_neg(x2), soft_neg(x1), /*XXX*/LDOUBLE);
+	else
+		return soft_sub(x1, x2, /*XXX*/LDOUBLE);
 }
 
 /*
@@ -662,15 +1014,287 @@ soft_minus(SF x1, SF x2)
 SF
 soft_mul(SF x1, SF x2)
 {
+	if (soft_isnan(x1))
+		return x1;
+	else if (soft_isnan(x2))
+		return x2;
 	cerror("soft_mul");
 	return x1;
+
+/*
+    if ( ! expA ) expA = 1;
+    sigA = aSPtr->signif;
+    if ( ! (sigA & UINT64_C( 0x8000000000000000 )) ) {
+        if ( ! sigA ) goto zero;
+        expA += softfloat_normExtF80SigM( &sigA );
+    }
+    if ( ! expB ) expB = 1;
+    sigB = bSPtr->signif;
+    if ( ! (sigB & UINT64_C( 0x8000000000000000 )) ) {
+        if ( ! sigB ) goto zero;
+        expB += softfloat_normExtF80SigM( &sigB );
+    }
+
+// version f128
+    if ( ! expA ) {
+        if ( ! (sigA.v64 | sigA.v0) ) goto zero;
+        normExpSig = softfloat_normSubnormalF128Sig( sigA.v64, sigA.v0 );
+        expA = normExpSig.exp;
+        sigA = normExpSig.sig;
+    }
+    if ( ! expB ) {
+        if ( ! (sigB.v64 | sigB.v0) ) goto zero;
+        normExpSig = softfloat_normSubnormalF128Sig( sigB.v64, sigB.v0 );
+        expB = normExpSig.exp;
+        sigB = normExpSig.sig;
+    }
+
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+    expZ = expA + expB - 0x3FFE;
+//    softfloat_mul64To128M( sigA, sigB, sigProd );
+void softfloat_mul64To128M( uint64_t a, uint64_t b, uint32_t *zPtr )
+{
+    uint32_t a32, a0, b32, b0;
+    uint64_t z0, mid1, z64, mid;
+
+    a32 = a>>32;
+    a0 = a;
+    b32 = b>>32;
+    b0 = b;
+    z0 = (uint64_t) a0 * b0;
+    mid1 = (uint64_t) a32 * b0;
+    mid = mid1 + (uint64_t) a0 * b32;
+    z64 = (uint64_t) a32 * b32;
+    z64 += (uint64_t) (mid < mid1)<<32 | mid>>32;
+    mid <<= 32;
+    z0 += mid;
+    zPtr[indexWord( 4, 1 )] = z0>>32;
+    zPtr[indexWord( 4, 0 )] = z0;
+    z64 += (z0 < mid);
+    zPtr[indexWord( 4, 3 )] = z64>>32;
+    zPtr[indexWord( 4, 2 )] = z64;
+
+}
+
+struct uint128 softfloat_mul64To128( uint64_t a, uint64_t b )
+{
+    uint32_t a32, a0, b32, b0;
+    struct uint128 z;
+    uint64_t mid1, mid;
+
+    a32 = a>>32;
+    a0 = a;
+    b32 = b>>32;
+    b0 = b;
+    z.v0 = (uint_fast64_t) a0 * b0;
+    mid1 = (uint_fast64_t) a32 * b0;
+    mid = mid1 + (uint_fast64_t) a0 * b32;
+    z.v64 = (uint_fast64_t) a32 * b32;
+    z.v64 += (uint_fast64_t) (mid < mid1)<<32 | mid>>32;
+    mid <<= 32;
+    z.v0 += mid;
+    z.v64 += (z.v0 < mid);
+    return z;
+}
+//**
+    if ( sigProd[indexWordLo( 4 )] ) sigProd[indexWord( 4, 1 )] |= 1;
+    extSigZPtr = &sigProd[indexMultiwordHi( 4, 3 )];
+    if ( sigProd[indexWordHi( 4 )] < 0x80000000 ) {
+        --expZ;
+        softfloat_add96M( extSigZPtr, extSigZPtr, extSigZPtr );
+    }
+    softfloat_roundPackMToExtF80M(
+        signZ, expZ, extSigZPtr, extF80_roundingPrecision, zSPtr );
+    return;
+
+//**
+#define softfloat_add96M( aPtr, bPtr, zPtr ) softfloat_addM( 3, aPtr, bPtr, zPtr )
+
+void softfloat_addM(
+     uint_fast8_t size_words,
+     const uint32_t *aPtr,
+     const uint32_t *bPtr,
+     uint32_t *zPtr
+ )
+{
+    unsigned int index, lastIndex;
+    uint_fast8_t carry;
+    uint32_t wordA, wordZ;
+
+    index = indexWordLo( size_words );
+    lastIndex = indexWordHi( size_words );
+    carry = 0;
+    for (;;) {
+        wordA = aPtr[index];
+        wordZ = wordA + bPtr[index] + carry;
+        zPtr[index] = wordZ;
+        if ( index == lastIndex ) break;
+        carry = carry ? (wordZ <= wordA) : (wordZ < wordA);
+        index += wordIncr;
+    }
+
+}
+//**
+
+// version f128
+    expZ = expA + expB - 0x4000;
+    sigA.v64 |= UINT64_C( 0x0001000000000000 );
+    sigB = softfloat_shortShiftLeft128( sigB.v64, sigB.v0, 16 );
+    softfloat_mul128To256M( sigA.v64, sigA.v0, sigB.v64, sigB.v0, sig256Z );
+    sigZExtra = sig256Z[indexWord( 4, 1 )] | (sig256Z[indexWord( 4, 0 )] != 0);
+    sigZ =
+        softfloat_add128(
+            sig256Z[indexWord( 4, 3 )], sig256Z[indexWord( 4, 2 )],
+            sigA.v64, sigA.v0
+        );
+    if ( UINT64_C( 0x0002000000000000 ) <= sigZ.v64 ) {
+        ++expZ;
+        sig128Extra =
+            softfloat_shortShiftRightJam128Extra(
+                sigZ.v64, sigZ.v0, sigZExtra, 1 );
+        sigZ = sig128Extra.v;
+        sigZExtra = sig128Extra.extra;
+    }
+    return
+        softfloat_roundPackToF128( signZ, expZ, sigZ.v64, sigZ.v0, sigZExtra );
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ propagateNaN:
+    uiZ = softfloat_propagateNaNF128UI( uiA64, uiA0, uiB64, uiB0 );
+    goto uiZ;
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ infArg:
+    if ( ! magBits ) {
+        softfloat_raiseFlags( softfloat_flag_invalid );
+        uiZ.v64 = defaultNaNF128UI64;
+        uiZ.v0  = defaultNaNF128UI0;
+        goto uiZ;
+    }
+    uiZ.v64 = packToF128UI64( signZ, 0x7FFF, 0 );
+    goto uiZ0;
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ zero:
+    uiZ.v64 = packToF128UI64( signZ, 0, 0 );
+ uiZ0:
+    uiZ.v0 = 0;
+ uiZ:
+    uZ.ui = uiZ;
+*/
+
 }
 
 SF
 soft_div(SF x1, SF x2)
 {
+	if (soft_isnan(x1))
+		return x1;
+	else if (soft_isnan(x2))
+		return x2;
 	cerror("soft_div");
 	return x1;
+
+/*
+    if ( ! expB ) expB = 1;
+    if ( ! (sigB & UINT64_C( 0x8000000000000000 )) ) {
+        if ( ! sigB ) {
+            if ( ! sigA ) goto invalid;
+            softfloat_raiseFlags( softfloat_flag_infinite );
+            goto infinity;
+        }
+        normExpSig = softfloat_normSubnormalExtF80Sig( sigB );
+        expB += normExpSig.exp;
+        sigB = normExpSig.sig;
+    }
+    if ( ! expA ) expA = 1;
+    if ( ! (sigA & UINT64_C( 0x8000000000000000 )) ) {
+        if ( ! sigA ) goto zero;
+        normExpSig = softfloat_normSubnormalExtF80Sig( sigA );
+        expA += normExpSig.exp;
+        sigA = normExpSig.sig;
+    }
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+    expZ = expA - expB + 0x3FFF;
+    if ( sigA < sigB ) {
+        --expZ;
+        rem = softfloat_shortShiftLeft128( 0, sigA, 32 );
+    } else {
+        rem = softfloat_shortShiftLeft128( 0, sigA, 31 );
+    }
+    recip32 = softfloat_approxRecip32_1( sigB>>32 );
+    sigZ = 0;
+    ix = 2;
+    for (;;) {
+        q64 = (uint_fast64_t) (uint32_t) (rem.v64>>2) * recip32;
+        q = (q64 + 0x80000000)>>32;
+        --ix;
+        if ( ix < 0 ) break;
+        rem = softfloat_shortShiftLeft128( rem.v64, rem.v0, 29 );
+        term = softfloat_mul64ByShifted32To128( sigB, q );
+        rem = softfloat_sub128( rem.v64, rem.v0, term.v64, term.v0 );
+        if ( rem.v64 & UINT64_C( 0x8000000000000000 ) ) {
+            --q;
+            rem = softfloat_add128( rem.v64, rem.v0, sigB>>32, sigB<<32 );
+        }
+        sigZ = (sigZ<<29) + q;
+    }
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+    if ( ((q + 1) & 0x3FFFFF) < 2 ) {
+        rem = softfloat_shortShiftLeft128( rem.v64, rem.v0, 29 );
+        term = softfloat_mul64ByShifted32To128( sigB, q );
+        rem = softfloat_sub128( rem.v64, rem.v0, term.v64, term.v0 );
+        term = softfloat_shortShiftLeft128( 0, sigB, 32 );
+        if ( rem.v64 & UINT64_C( 0x8000000000000000 ) ) {
+            --q;
+            rem = softfloat_add128( rem.v64, rem.v0, term.v64, term.v0 );
+        } else if ( softfloat_le128( term.v64, term.v0, rem.v64, rem.v0 ) ) {
+            ++q;
+            rem = softfloat_sub128( rem.v64, rem.v0, term.v64, term.v0 );
+        }
+        if ( rem.v64 | rem.v0 ) q |= 1;
+    }
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+    sigZ = (sigZ<<6) + (q>>23);
+    sigZExtra = (uint64_t) ((uint_fast64_t) q<<41);
+    return
+        softfloat_roundPackToExtF80(
+            signZ, expZ, sigZ, sigZExtra, extF80_roundingPrecision );
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ propagateNaN:
+    uiZ = softfloat_propagateNaNExtF80UI( uiA64, uiA0, uiB64, uiB0 );
+    uiZ64 = uiZ.v64;
+    uiZ0  = uiZ.v0;
+    goto uiZ;
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ invalid:
+    softfloat_raiseFlags( softfloat_flag_invalid );
+    uiZ64 = defaultNaNExtF80UI64;
+    uiZ0  = defaultNaNExtF80UI0;
+    goto uiZ;
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ infinity:
+    uiZ64 = packToExtF80UI64( signZ, 0x7FFF );
+    uiZ0  = UINT64_C( 0x8000000000000000 );
+    goto uiZ;
+    //*------------------------------------------------------------------------
+    //*------------------------------------------------------------------------
+ zero:
+    uiZ64 = packToExtF80UI64( signZ, 0 );
+    uiZ0  = 0;
+ uiZ:
+    uZ.s.signExp = uiZ64;
+    uZ.s.signif  = uiZ0;
+    return uZ.f;
+*/
+
 }
 
 /*
@@ -687,58 +1311,148 @@ soft_isz(SF sf)
 }
 
 int
-soft_cmp_eq(SF x1, SF x2)
+soft_isinf(SF sf)
 {
-	int exp1 = x1.exponent, exp2 = x2.exponent;
-
-/* Special cases: +0 == -0 ; NaN != NaN ; normalized */
-	if ((x1.kind & SF_kmask) != (x2.kind & SF_kmask)) {
-		/* XXX only case where it can match is when Norm double == denorm float */
-		return 0;
-	}
-	while (x1.significand < (1ull<<63))
-		x1.significand <<= 1, exp1--;
-	while (x2.significand < (1ull<<63))
-		x2.significand <<= 1, exp2--;
-
-	cerror("soft_cmp_eq");
-	return 0;
+	return (sf.kind & SF_kmask) == SF_Infinite;
 }
+
+int
+soft_isnan(SF sf)
+{
+	return (sf.kind & SF_kmask) == SF_NaN;
+}
+
+/*
+ * IEEE754 states that between any two floating-point numbers,
+ * four mutually exclusive relations are possible:
+ * less than, equal, greater than, and unordered.
+ */
 
 int
 soft_cmp_ne(SF x1, SF x2)
 {
-	/* XXX strategy: test NaN, else returns ! soft_cmp_eq(SF x1, SF x2) */
-	cerror("soft_cmp_ne");
-	return 0;
+	return soft_cmp_unord(x1, x2) ? 0 : ! soft_cmp_eq(x1, x2);
 }
 
 int
 soft_cmp_le(SF x1, SF x2)
 {
-	cerror("soft_cmp_le");
-	return 0;
-}
-
-int
-soft_cmp_lt(SF x1, SF x2)
-{
-	cerror("soft_cmp_lt");
-	return 0;
+	return soft_cmp_unord(x1, x2) ? 0 : ! soft_cmp_gt(x1, x2);
 }
 
 int
 soft_cmp_ge(SF x1, SF x2)
 {
-	cerror("soft_cmp_ge");
-	return 0;
+	return soft_cmp_unord(x1, x2) ? 0 : ! soft_cmp_lt(x1, x2);
+}
+
+/*
+ * Return true if either operand is NaN.
+ */
+int
+soft_cmp_unord(SF x1, SF x2)
+{
+	return soft_isnan(x1) || soft_isnan(x2);
+}
+
+int
+soft_cmp_eq(SF x1, SF x2)
+{
+	int exp1, exp2;
+
+	if (soft_cmp_unord(x1, x2))
+		return 0;
+	if (soft_isz(x1))
+		/* special case: +0 == -0 (discard sign) */
+		return soft_isz(x2);
+	if ((x1.kind & SF_Neg) != (x2.kind & SF_Neg))
+		return 0;
+	if (soft_isinf(x1))
+		return soft_isinf(x2);
+	/* Both operands are finite, nonzero, same sign. */
+	exp1 = x1.exponent, exp2 = x2.exponent;
+	assert(x1.significand && x2.significand);
+	while (x1.significand < NORMALMANT)
+		x1.significand <<= 1, exp1--;
+	while (x2.significand < NORMALMANT)
+		x2.significand <<= 1, exp2--;
+	return exp1 == exp2 && x1.significand == x2.significand;
+}
+
+int
+soft_cmp_lt(SF x1, SF x2)
+{
+	int exp1, exp2;
+
+	if (soft_cmp_unord(x1, x2))
+		return 0;
+	if (soft_isz(x1) && soft_isz(x2))
+		return 0; /* special case: -0 !> +0 */
+	switch (x1.kind & SF_Neg - x2.kind & SF_Neg) {
+	  case SF_Neg - 0:
+		return 1; /* x1 < 0 < x2 */
+	  case 0 - SF_Neg:
+		return 0; /* x1 > 0 > x2 */
+	  case 0:
+		break;
+	}
+	if (x1.kind & SF_Neg) {
+		SF tmp = x1;
+		x1 = x2;
+		x2 = tmp;
+	}
+	if (soft_isinf(x2))
+		return ! soft_isinf(x1);
+	if (soft_isz(x1))
+		return 1;
+	if (soft_isz(x2) || soft_isinf(x1))
+		return 0;
+	/* Both operands are finite, nonzero, same sign. Test |x1| < |x2|*/
+	exp1 = x1.exponent, exp2 = x2.exponent;
+	assert(x1.significand && x2.significand);
+	while (x1.significand < NORMALMANT)
+		x1.significand <<= 1, exp1--;
+	while (x2.significand < NORMALMANT)
+		x2.significand <<= 1, exp2--;
+	return exp1 < exp2 || x1.significand < x2.significand;
 }
 
 int
 soft_cmp_gt(SF x1, SF x2)
 {
-	cerror("soft_cmp_gt");
-	return 0;
+	int exp1, exp2;
+
+	if (soft_cmp_unord(x1, x2))
+		return 0;
+	if (soft_isz(x1) && soft_isz(x2))
+		return 0; /* special case: -0 !< +0 */
+	switch (x1.kind & SF_Neg - x2.kind & SF_Neg) {
+	  case SF_Neg - 0:
+		return 1; /* x1 > 0 > x2 */
+	  case 0 - SF_Neg:
+		return 0; /* x1 < 0 < x2 */
+	  case 0:
+		break;
+	}
+	if (x1.kind & SF_Neg) {
+		SF tmp = x1;
+		x1 = x2;
+		x2 = tmp;
+	}
+	if (soft_isinf(x1))
+		return ! soft_isinf(x2);
+	if (soft_isz(x1) || soft_isinf(x2))
+		return 0;
+	if (soft_isz(x2))
+		return 1;
+	/* Both operands are finite, nonzero, same sign. Test |x1| > |x2|*/
+	exp1 = x1.exponent, exp2 = x2.exponent;
+	assert(x1.significand && x2.significand);
+	while (x1.significand < NORMALMANT)
+		x1.significand <<= 1, exp1--;
+	while (x2.significand < NORMALMANT)
+		x2.significand <<= 1, exp2--;
+	return exp1 > exp2 || x1.significand > x2.significand;
 }
 
 /*
@@ -753,15 +1467,18 @@ soft_cmp_gt(SF x1, SF x2)
  * The .significand bits are left in place, ready to be used by
  * the endian-aware code. The MSB one is still there.
  * SF_NaN is expanded into the IEEE754:2008 default representation
- * (1 as most significant bit, rest all zeroes); if not appropriate
+ * (11 as most significant bits, rest all zeroes); if not appropriate
  * for the target, the calling code should replace it with SF_NaNbits
  * with the adequate bits into the .significand member.
  */
 int
-soft_pack(SF *psf, FPI *fpi)
+soft_pack(SF *psf, TWORD t)
 {
+	FPI *fpi;
 	int biasedexp;
 
+	assert(t>=FLOAT && t<=LDOUBLE);
+	fpi = fpis[t-FLOAT];
 	/* XXX normalize */
 	biasedexp = psf->exponent + fpi->exp_bias;
 	switch(psf->kind & SF_kmask) {
@@ -786,8 +1503,9 @@ soft_pack(SF *psf, FPI *fpi)
 		break;
 
 	  case SF_Infinite:
+/* XXX Should rather deliver corresponding dbl_MAX (HUGE_VAL), with error message */
 		assert(fpi->has_inf_nan);
-		psf->significand = 1ull << (fpi->nbits-1);
+		psf->significand = ONEZEROES(fpi->nbits-1);
 		biasedexp = fpi->emax - fpi->exp_bias + 1;
 		break;
 
@@ -796,7 +1514,8 @@ soft_pack(SF *psf, FPI *fpi)
 		/* Can it happen? Debug_Warns? ICE? */
 		/* Let decay as NaN */
 	  case SF_NaN:
-		psf->significand = 1ull << (fpi->nbits-2);
+/* XXX can be the result of float f = 0./0.; !!! What to do on a VAX?!? */
+		psf->significand = 3 * ONEZEROES(fpi->nbits-2);
 		/* FALLTHROUGH */
 	  case SF_NaNbits:
 		assert(fpi->has_inf_nan);
@@ -857,7 +1576,7 @@ fcon(char *str, int (*strtodg_p)())
 	NODE *p;
 	char *sfx, *eptr;
 	FPI *fpi;
-	ULong bits[2];
+	ULong bits[2] = { 0, 0 };
 	Long expt;
 	int k, im;
 
@@ -902,7 +1621,7 @@ fcon(char *str, int (*strtodg_p)())
 		uerror("Botch in floatcon, sfx-eptr=%d", (int)(sfx-eptr));
 	if (k & SFEXCP_Overflow)
 		werror("Overflow in floating-point constant");
-/* XXX F.7.2 recommends diagnostic for underflow, but the definition of it in IEEE754 is a bit hairy */
+/* XXX F.7.2 recommends (indirectly) diagnostic for underflow; might be verbose though */
 	if (k & SFEXCP_Inexact && (str[1] == 'x' || str[1] == 'X'))
 		werror("Hexadecimal floating-point constant not represented exactly");
 #ifndef NO_COMPLEX
@@ -928,13 +1647,13 @@ fcon(char *str, int (*strtodg_p)())
 
 	  case SF_Infinite:
 		p->n_dcon.significand = 1ull << (fpi->nbits-1);
-		/* FALLTHROUGH */
-	  case SF_NaNbits:
 		p->n_dcon.exponent = fpi->emax+1;
 		break;
 
 	  case SF_NaN:
-		p->n_dcon.significand = 1ull << (fpi->nbits-2);
+		p->n_dcon.significand = 3ull << (fpi->nbits-2);
+		/* FALLTHROUGH */
+	  case SF_NaNbits:
 		p->n_dcon.exponent = fpi->emax+1;
 		break;
 	}

@@ -5,6 +5,11 @@
  * This is a derivation of (part of) the package gdtoa published by
  * David M. Gay and generally available as gdtoa.tgz at
  * http://www.netlib.org/fp/
+ * This package is a generalization of the strtod routine described in
+ * 	David M. Gay, "Correctly Rounded Binary-Decimal and
+ *	Decimal-Binary Conversions", Numerical Analysis Manuscript
+ *	No. 90-10, Bell Labs, Murray Hill, 1990;
+ *	http://cm.bell-labs.com/cm/cs/what/ampl/REFS/rounding.ps.gz
  *
  * We used only the decimal->binary "generic" conversion, which is
  * exposed through the strtodg() function, along with all the support
@@ -55,18 +60,15 @@ done
 #include "config.h"
 #if defined(IEEE_8087) + defined(IEEE_MC68k) + defined(VAX) + defined(IBM) == 0
 /* Try to guess the host floating-point implementation */
-#if defined(vax) || defined(__vax__)
+# if defined(vax) || defined(__vax__)
 #define VAX
-#elif defined(HOST_LITTLE_ENDIAN)
+# elif defined(HOST_LITTLE_ENDIAN)
 #define IEEE_8087
-#define IEEE_LITTLE_ENDIAN
-#elif defined(HOST_BIG_ENDIAN)
+# elif defined(HOST_BIG_ENDIAN)
 #define IEEE_MC68k
-#define IEEE_BIG_ENDIAN
+# endif
 #endif
 #endif
-#endif
-
 /* gdtoaimp.h */
 /****************************************************************
 
