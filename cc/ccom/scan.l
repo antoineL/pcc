@@ -34,7 +34,7 @@ L			[a-zA-Z_]
 H			[a-fA-F0-9]
 E			[Ee][+-]?{D}+
 P			[Pp][+-]?{D}+
-FS			(f|F|l|L|i)*
+FS			i?(f|F|l|L)i?
 IS			(u|U|l|L|i)*
 UL			({L}|[\x80-\xFF])
 
@@ -277,8 +277,7 @@ resw(TWORD t, int rv)
 	return 0;
 }
 
-//#ifndef SOFTFLOAT
-#if !defined SOFTFLOAT && !defined SOFTFLOAT_CONSTANT
+#ifndef SOFTFLOAT
 
 static long double
 typround(long double dc, char *e, TWORD *tw)

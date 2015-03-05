@@ -270,7 +270,11 @@ NODE *	typenode(NODE *new);
 void	spalloc(NODE *, NODE *, OFFSZ);
 char	*exname(char *);
 NODE	*floatcon(char *);
+#if defined(SOFTFLOAT) && !defined(FDFLOAT)
+#define fhexcon(s) floatcon(s)
+#else
 NODE	*fhexcon(char *);
+#endif
 NODE	*bdty(int op, ...);
 extern struct rstack *rpole;
 

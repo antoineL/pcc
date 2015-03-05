@@ -16,12 +16,12 @@
  * routines it needs. We have concatenated the files
  *	gdtoaimp.h
  *	misc.c
- *	hd_init.c
  *	gmisc.c
  *	smisc.c
  *	sum.c
- *	strtodg.c
+ *	hd_init.c
  *	gethex.c
+ *	strtodg.c
  * removing the duplicated notices (first 32 lines.)
  * Then we have introduced small changes, mostly to silence compiler
  * warnings or to disable features we do not use.
@@ -30,7 +30,7 @@
  * package, to improve the "diffability" with it.
  * The reference version could thus be retrieved with
 sed -e "32q" gdtoaimp.h > strtodg.ref
-for f in gdtoaimp.h misc.c hd_init.c gmisc.c smisc.c sum.c strtodg.c gethex.c
+for f in gdtoaimp.h misc.c gmisc.c smisc.c sum.c hd_init.c gethex.c strtodg.c
 do sed -e "1,32d" $f >>strtodg.ref
 done
  *
@@ -48,7 +48,7 @@ done
 
 /* Tailoring for PCC */
 #define NO_INFNAN_CHECK
-#define NO_HEX_FP /* XXX checkme */
+#undef NO_HEX_FP
 #define No_Hex_NaN
 #define NO_ERRNO
 #undef USE_LOCALE
@@ -284,7 +284,6 @@ enum {	/* return values from strtodg */
 	STRTOG_Overflow	= SFEXCP_Overflow
 };
 int strtodg (const char*, char**, FPI*, Long*, ULong*);
-int strhextodg (const char*, char**, FPI*, Long*, ULong*);
 #endif /* STRTODG_FOR_PCC */
 #ifdef Honor_FLT_ROUNDS
 #include <fenv.h>
@@ -1593,52 +1592,6 @@ memcpy_D2A(void *a1, void *b1, size_t len)
 
 #endif /* NO_STRING_H */
 
-/* hd_init.c */
-#if 0
- unsigned char hexdig[256];
-
- static void
-#ifdef KR_headers
-htinit(h, s, inc) unsigned char *h; unsigned char *s; int inc;
-#else
-htinit(unsigned char *h, unsigned char *s, int inc)
-#endif
-{
-	int i, j;
-	for(i = 0; (j = s[i]) !=0; i++)
-		h[j] = i + inc;
-	}
-
- void
-hexdig_init_D2A(Void)	/* Use of hexdig_init omitted 20121220 to avoid a */
-			/* race condition when multiple threads are used. */
-{
-#define USC (unsigned char *)
-	htinit(hexdig, USC "0123456789", 0x10);
-	htinit(hexdig, USC "abcdef", 0x10 + 10);
-	htinit(hexdig, USC "ABCDEF", 0x10 + 10);
-	}
-#else
- unsigned char hexdig[256] = {
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	16,17,18,19,20,21,22,23,24,25,0,0,0,0,0,0,
-	0,26,27,28,29,30,31,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,26,27,28,29,30,31,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	};
-#endif
-
 /* gmisc.c */
  void
 #ifdef KR_headers
@@ -1919,6 +1872,382 @@ sum(Bigint *a, Bigint *b)
 		c->x[c->wds++] = 1;
 		}
 	return c;
+	}
+
+/* hd_init.c */
+#if 0
+ unsigned char hexdig[256];
+
+ static void
+#ifdef KR_headers
+htinit(h, s, inc) unsigned char *h; unsigned char *s; int inc;
+#else
+htinit(unsigned char *h, unsigned char *s, int inc)
+#endif
+{
+	int i, j;
+	for(i = 0; (j = s[i]) !=0; i++)
+		h[j] = i + inc;
+	}
+
+ void
+hexdig_init_D2A(Void)	/* Use of hexdig_init omitted 20121220 to avoid a */
+			/* race condition when multiple threads are used. */
+{
+#define USC (unsigned char *)
+	htinit(hexdig, USC "0123456789", 0x10);
+	htinit(hexdig, USC "abcdef", 0x10 + 10);
+	htinit(hexdig, USC "ABCDEF", 0x10 + 10);
+	}
+#else
+ unsigned char hexdig[256] = {
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	16,17,18,19,20,21,22,23,24,25,0,0,0,0,0,0,
+	0,26,27,28,29,30,31,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,26,27,28,29,30,31,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	};
+#endif
+
+/* gethex.c */
+#ifdef USE_LOCALE
+#include "locale.h"
+#endif
+
+ int
+#ifdef KR_headers
+gethex(sp, fpi, exp, bp, sign)
+	CONST char **sp; FPI *fpi; Long *exp; Bigint **bp; int sign;
+#else
+gethex( CONST char **sp, FPI *fpi, Long *exp, Bigint **bp, int sign)
+#endif
+{
+	Bigint *b;
+	CONST unsigned char *decpt, *s0, *s, *s1;
+	int big, esign, havedig, irv, j, k, n, n0, nbits, up, zret;
+	ULong L, lostbits, *x;
+	Long e, e1;
+#ifdef USE_LOCALE
+	int i;
+#ifdef NO_LOCALE_CACHE
+	const unsigned char *decimalpoint = (unsigned char*)localeconv()->decimal_point;
+#else
+	const unsigned char *decimalpoint;
+	static unsigned char *decimalpoint_cache;
+	if (!(s0 = decimalpoint_cache)) {
+		s0 = (unsigned char*)localeconv()->decimal_point;
+		if ((decimalpoint_cache = (char*)MALLOC(strlen(s0) + 1))) {
+			strcpy(decimalpoint_cache, s0);
+			s0 = decimalpoint_cache;
+			}
+		}
+	decimalpoint = s0;
+#endif
+#endif
+
+	/**** if (!hexdig['0']) hexdig_init_D2A(); ****/
+	*bp = 0;
+	havedig = 0;
+	s0 = *(CONST unsigned char **)sp + 2;
+	while(s0[havedig] == '0')
+		havedig++;
+	s0 += havedig;
+	s = s0;
+	decpt = 0;
+	zret = 0;
+	e = 0;
+	if (hexdig[*s])
+		havedig++;
+	else {
+		zret = 1;
+#ifdef USE_LOCALE
+		for(i = 0; decimalpoint[i]; ++i) {
+			if (s[i] != decimalpoint[i])
+				goto pcheck;
+			}
+		decpt = s += i;
+#else
+		if (*s != '.')
+			goto pcheck;
+		decpt = ++s;
+#endif
+		if (!hexdig[*s])
+			goto pcheck;
+		while(*s == '0')
+			s++;
+		if (hexdig[*s])
+			zret = 0;
+		havedig = 1;
+		s0 = s;
+		}
+	while(hexdig[*s])
+		s++;
+#ifdef USE_LOCALE
+	if (*s == *decimalpoint && !decpt) {
+		for(i = 1; decimalpoint[i]; ++i) {
+			if (s[i] != decimalpoint[i])
+				goto pcheck;
+			}
+		decpt = s += i;
+#else
+	if (*s == '.' && !decpt) {
+		decpt = ++s;
+#endif
+		while(hexdig[*s])
+			s++;
+		}/*}*/
+	if (decpt)
+		e = -(((Long)(s-decpt)) << 2);
+ pcheck:
+	s1 = s;
+	big = esign = 0;
+	switch(*s) {
+	  case 'p':
+	  case 'P':
+		switch(*++s) {
+		  case '-':
+			esign = 1;
+			/* no break */
+		  case '+':
+			s++;
+		  }
+		if ((n = hexdig[*s]) == 0 || n > 0x19) {
+			s = s1;
+			break;
+			}
+		e1 = n - 0x10;
+		while((n = hexdig[*++s]) !=0 && n <= 0x19) {
+			if (e1 & 0xf8000000)
+				big = 1;
+			e1 = 10*e1 + n - 0x10;
+			}
+		if (esign)
+			e1 = -e1;
+		e += e1;
+	  }
+	*sp = (char*)s;
+	if (!havedig)
+		*sp = (char*)s0 - 1;
+	if (zret)
+		return STRTOG_Zero;
+	if (big) {
+		if (esign) {
+#ifdef STRTODG_FOR_PCC
+		  if (! fpi->sudden_underflow)
+#endif
+			switch(fpi->rounding) {
+			  case FPI_Round_up:
+				if (sign)
+					break;
+				goto ret_tiny;
+			  case FPI_Round_down:
+				if (!sign)
+					break;
+				goto ret_tiny;
+			  }
+			goto retz;
+ ret_tiny:
+			b = Balloc(0);
+			b->wds = 1;
+			b->x[0] = 1;
+			goto dret;
+			}
+		switch(fpi->rounding) {
+		  case FPI_Round_near:
+			goto ovfl1;
+		  case FPI_Round_up:
+			if (!sign)
+				goto ovfl1;
+			goto ret_big;
+		  case FPI_Round_down:
+			if (sign)
+				goto ovfl1;
+			goto ret_big;
+		  }
+ ret_big:
+		nbits = fpi->nbits;
+		n0 = n = nbits >> kshift;
+		if (nbits & kmask)
+			++n;
+		for(j = n, k = 0; j >>= 1; ++k);
+		*bp = b = Balloc(k);
+		b->wds = n;
+		for(j = 0; j < n0; ++j)
+			b->x[j] = ALL_ON;
+		if (n > n0)
+			b->x[j] = ULbits >> (ULbits - (nbits & kmask));
+		*exp = fpi->emin;
+		return STRTOG_Normal | STRTOG_Inexlo;
+		}
+	n = s1 - s0 - 1;
+	for(k = 0; n > (1 << (kshift-2)) - 1; n >>= 1)
+		k++;
+	b = Balloc(k);
+	x = b->x;
+	n = 0;
+	L = 0;
+#ifdef USE_LOCALE
+	for(i = 0; decimalpoint[i+1]; ++i);
+#endif
+	while(s1 > s0) {
+#ifdef USE_LOCALE
+		if (*--s1 == decimalpoint[i]) {
+			s1 -= i;
+			continue;
+			}
+#else
+		if (*--s1 == '.')
+			continue;
+#endif
+		if (n == ULbits) {
+			*x++ = L;
+			L = 0;
+			n = 0;
+			}
+		L |= (hexdig[*s1] & 0x0f) << n;
+		n += 4;
+		}
+	*x++ = L;
+	b->wds = n = x - b->x;
+	n = ULbits*n - hi0bits(L);
+	nbits = fpi->nbits;
+	lostbits = 0;
+	x = b->x;
+	if (n > nbits) {
+		n -= nbits;
+		if (any_on(b,n)) {
+			lostbits = 1;
+			k = n - 1;
+			if (x[k>>kshift] & 1 << (k & kmask)) {
+				lostbits = 2;
+				if (k > 0 && any_on(b,k))
+					lostbits = 3;
+				}
+			}
+		rshift(b, n);
+		e += n;
+		}
+	else if (n < nbits) {
+		n = nbits - n;
+		b = lshift(b, n);
+		e -= n;
+		x = b->x;
+		}
+	if (e > fpi->emax) {
+ ovfl:
+		Bfree(b);
+ ovfl1:
+#ifndef NO_ERRNO
+		errno = ERANGE;
+#endif
+#ifdef STRTODG_FOR_PCC
+		*exp = fpi->emax + 1;
+#endif
+		return STRTOG_Infinite | STRTOG_Overflow | STRTOG_Inexhi;
+		}
+	irv = STRTOG_Normal;
+	if (e < fpi->emin) {
+#ifdef STRTODG_FOR_PCC
+		if (fpi->sudden_underflow) {
+			Bfree(b);
+			goto retz;
+			}
+#endif
+		irv = STRTOG_Denormal;
+		n = fpi->emin - e;
+		if (n >= nbits) {
+			switch (fpi->rounding) {
+			  case FPI_Round_near:
+				if (n == nbits && (n < 2 || any_on(b,n-1)))
+					goto one_bit;
+				break;
+			  case FPI_Round_up:
+				if (!sign)
+					goto one_bit;
+				break;
+			  case FPI_Round_down:
+				if (sign) {
+ one_bit:
+					x[0] = b->wds = 1;
+ dret:
+					*bp = b;
+					*exp = fpi->emin;
+#ifndef NO_ERRNO
+					errno = ERANGE;
+#endif
+					return STRTOG_Denormal | STRTOG_Inexhi
+						| STRTOG_Underflow;
+					}
+			  }
+			Bfree(b);
+ retz:
+#ifndef NO_ERRNO
+			errno = ERANGE;
+#endif
+			return STRTOG_Zero | STRTOG_Inexlo | STRTOG_Underflow;
+			}
+		k = n - 1;
+		if (lostbits)
+			lostbits = 1;
+		else if (k > 0)
+			lostbits = any_on(b,k);
+		if (x[k>>kshift] & 1 << (k & kmask))
+			lostbits |= 2;
+		nbits -= n;
+		rshift(b,n);
+		e = fpi->emin;
+		}
+	if (lostbits) {
+		up = 0;
+		switch(fpi->rounding) {
+		  case FPI_Round_zero:
+			break;
+		  case FPI_Round_near:
+			if (lostbits & 2
+			 && (lostbits | x[0]) & 1)
+				up = 1;
+			break;
+		  case FPI_Round_up:
+			up = 1 - sign;
+			break;
+		  case FPI_Round_down:
+			up = sign;
+		  }
+		if (up) {
+			k = b->wds;
+			b = increment(b);
+			x = b->x;
+			if (irv == STRTOG_Denormal) {
+				if (nbits == fpi->nbits - 1
+				 && x[nbits >> kshift] & 1 << (nbits & kmask))
+					irv =  STRTOG_Normal;
+				}
+			else if (b->wds > k
+			 || ((n = nbits & kmask) !=0
+			      && hi0bits(x[k-1]) < 32-n)) {
+				rshift(b,1);
+				if (++e > fpi->emax)
+					goto ovfl;
+				}
+			irv |= STRTOG_Inexhi;
+			}
+		else
+			irv |= STRTOG_Inexlo;
+		}
+	*bp = b;
+	*exp = e;
+	return irv;
 	}
 
 /* strtodg.c */
@@ -2250,7 +2579,6 @@ strtodg
 	dval(&rv) = 0.;
 	rvb = 0;
 	nbits = fpi->nbits;
-#ifndef STRTODG_FOR_PCC
 	for(s = s00;;s++) switch(*s) {
 		case '-':
 			sign = 1;
@@ -2287,10 +2615,6 @@ strtodg
 				}
 			goto ret;
 		  }
-#endif
-#else
-	s = s00;
-	if (*s == '0') {
 #endif
 		nz0 = 1;
 		while(*++s == '0') ;
@@ -2961,362 +3285,4 @@ strtodg
 		}
 	return irv;
 	}
-
-/* gethex.c */
-#ifdef USE_LOCALE
-#include "locale.h"
-#endif
-
- int
-#ifdef KR_headers
-gethex(sp, fpi, exp, bp, sign)
-	CONST char **sp; FPI *fpi; Long *exp; Bigint **bp; int sign;
-#else
-gethex( CONST char **sp, FPI *fpi, Long *exp, Bigint **bp, int sign)
-#endif
-{
-	Bigint *b;
-	CONST unsigned char *decpt, *s0, *s, *s1;
-	int big, esign, havedig, irv, j, k, n, n0, nbits, up, zret;
-	ULong L, lostbits, *x;
-	Long e, e1;
-#ifdef USE_LOCALE
-	int i;
-#ifdef NO_LOCALE_CACHE
-	const unsigned char *decimalpoint = (unsigned char*)localeconv()->decimal_point;
-#else
-	const unsigned char *decimalpoint;
-	static unsigned char *decimalpoint_cache;
-	if (!(s0 = decimalpoint_cache)) {
-		s0 = (unsigned char*)localeconv()->decimal_point;
-		if ((decimalpoint_cache = (char*)MALLOC(strlen(s0) + 1))) {
-			strcpy(decimalpoint_cache, s0);
-			s0 = decimalpoint_cache;
-			}
-		}
-	decimalpoint = s0;
-#endif
-#endif
-
-	/**** if (!hexdig['0']) hexdig_init_D2A(); ****/
-	*bp = 0;
-	havedig = 0;
-	s0 = *(CONST unsigned char **)sp + 2;
-	while(s0[havedig] == '0')
-		havedig++;
-	s0 += havedig;
-	s = s0;
-	decpt = 0;
-	zret = 0;
-	e = 0;
-	if (hexdig[*s])
-		havedig++;
-	else {
-		zret = 1;
-#ifdef USE_LOCALE
-		for(i = 0; decimalpoint[i]; ++i) {
-			if (s[i] != decimalpoint[i])
-				goto pcheck;
-			}
-		decpt = s += i;
-#else
-		if (*s != '.')
-			goto pcheck;
-		decpt = ++s;
-#endif
-		if (!hexdig[*s])
-			goto pcheck;
-		while(*s == '0')
-			s++;
-		if (hexdig[*s])
-			zret = 0;
-		havedig = 1;
-		s0 = s;
-		}
-	while(hexdig[*s])
-		s++;
-#ifdef USE_LOCALE
-	if (*s == *decimalpoint && !decpt) {
-		for(i = 1; decimalpoint[i]; ++i) {
-			if (s[i] != decimalpoint[i])
-				goto pcheck;
-			}
-		decpt = s += i;
-#else
-	if (*s == '.' && !decpt) {
-		decpt = ++s;
-#endif
-		while(hexdig[*s])
-			s++;
-		}/*}*/
-	if (decpt)
-		e = -(((Long)(s-decpt)) << 2);
- pcheck:
-	s1 = s;
-	big = esign = 0;
-	switch(*s) {
-	  case 'p':
-	  case 'P':
-		switch(*++s) {
-		  case '-':
-			esign = 1;
-			/* no break */
-		  case '+':
-			s++;
-		  }
-		if ((n = hexdig[*s]) == 0 || n > 0x19) {
-			s = s1;
-			break;
-			}
-		e1 = n - 0x10;
-		while((n = hexdig[*++s]) !=0 && n <= 0x19) {
-			if (e1 & 0xf8000000)
-				big = 1;
-			e1 = 10*e1 + n - 0x10;
-			}
-		if (esign)
-			e1 = -e1;
-		e += e1;
-	  }
-	*sp = (char*)s;
-	if (!havedig)
-		*sp = (char*)s0 - 1;
-	if (zret)
-		return STRTOG_Zero;
-	if (big) {
-		if (esign) {
-#ifdef STRTODG_FOR_PCC
-		  if (! fpi->sudden_underflow)
-#endif
-			switch(fpi->rounding) {
-			  case FPI_Round_up:
-				if (sign)
-					break;
-				goto ret_tiny;
-			  case FPI_Round_down:
-				if (!sign)
-					break;
-				goto ret_tiny;
-			  }
-			goto retz;
- ret_tiny:
-			b = Balloc(0);
-			b->wds = 1;
-			b->x[0] = 1;
-			goto dret;
-			}
-		switch(fpi->rounding) {
-		  case FPI_Round_near:
-			goto ovfl1;
-		  case FPI_Round_up:
-			if (!sign)
-				goto ovfl1;
-			goto ret_big;
-		  case FPI_Round_down:
-			if (sign)
-				goto ovfl1;
-			goto ret_big;
-		  }
- ret_big:
-		nbits = fpi->nbits;
-		n0 = n = nbits >> kshift;
-		if (nbits & kmask)
-			++n;
-		for(j = n, k = 0; j >>= 1; ++k);
-		*bp = b = Balloc(k);
-		b->wds = n;
-		for(j = 0; j < n0; ++j)
-			b->x[j] = ALL_ON;
-		if (n > n0)
-			b->x[j] = ULbits >> (ULbits - (nbits & kmask));
-		*exp = fpi->emin;
-		return STRTOG_Normal | STRTOG_Inexlo;
-		}
-	n = s1 - s0 - 1;
-	for(k = 0; n > (1 << (kshift-2)) - 1; n >>= 1)
-		k++;
-	b = Balloc(k);
-	x = b->x;
-	n = 0;
-	L = 0;
-#ifdef USE_LOCALE
-	for(i = 0; decimalpoint[i+1]; ++i);
-#endif
-	while(s1 > s0) {
-#ifdef USE_LOCALE
-		if (*--s1 == decimalpoint[i]) {
-			s1 -= i;
-			continue;
-			}
-#else
-		if (*--s1 == '.')
-			continue;
-#endif
-		if (n == ULbits) {
-			*x++ = L;
-			L = 0;
-			n = 0;
-			}
-		L |= (hexdig[*s1] & 0x0f) << n;
-		n += 4;
-		}
-	*x++ = L;
-	b->wds = n = x - b->x;
-	n = ULbits*n - hi0bits(L);
-	nbits = fpi->nbits;
-	lostbits = 0;
-	x = b->x;
-	if (n > nbits) {
-		n -= nbits;
-		if (any_on(b,n)) {
-			lostbits = 1;
-			k = n - 1;
-			if (x[k>>kshift] & 1 << (k & kmask)) {
-				lostbits = 2;
-				if (k > 0 && any_on(b,k))
-					lostbits = 3;
-				}
-			}
-		rshift(b, n);
-		e += n;
-		}
-	else if (n < nbits) {
-		n = nbits - n;
-		b = lshift(b, n);
-		e -= n;
-		x = b->x;
-		}
-	if (e > fpi->emax) {
- ovfl:
-		Bfree(b);
- ovfl1:
-#ifndef NO_ERRNO
-		errno = ERANGE;
-#endif
-#ifdef STRTODG_FOR_PCC
-		*exp = fpi->emax + 1;
-#endif
-		return STRTOG_Infinite | STRTOG_Overflow | STRTOG_Inexhi;
-		}
-	irv = STRTOG_Normal;
-	if (e < fpi->emin) {
-#ifdef STRTODG_FOR_PCC
-		if (fpi->sudden_underflow) {
-			Bfree(b);
-			goto retz;
-			}
-#endif
-		irv = STRTOG_Denormal;
-		n = fpi->emin - e;
-		if (n >= nbits) {
-			switch (fpi->rounding) {
-			  case FPI_Round_near:
-				if (n == nbits && (n < 2 || any_on(b,n-1)))
-					goto one_bit;
-				break;
-			  case FPI_Round_up:
-				if (!sign)
-					goto one_bit;
-				break;
-			  case FPI_Round_down:
-				if (sign) {
- one_bit:
-					x[0] = b->wds = 1;
- dret:
-					*bp = b;
-					*exp = fpi->emin;
-#ifndef NO_ERRNO
-					errno = ERANGE;
-#endif
-					return STRTOG_Denormal | STRTOG_Inexhi
-						| STRTOG_Underflow;
-					}
-			  }
-			Bfree(b);
- retz:
-#ifndef NO_ERRNO
-			errno = ERANGE;
-#endif
-			return STRTOG_Zero | STRTOG_Inexlo | STRTOG_Underflow;
-			}
-		k = n - 1;
-		if (lostbits)
-			lostbits = 1;
-		else if (k > 0)
-			lostbits = any_on(b,k);
-		if (x[k>>kshift] & 1 << (k & kmask))
-			lostbits |= 2;
-		nbits -= n;
-		rshift(b,n);
-		e = fpi->emin;
-		}
-	if (lostbits) {
-		up = 0;
-		switch(fpi->rounding) {
-		  case FPI_Round_zero:
-			break;
-		  case FPI_Round_near:
-			if (lostbits & 2
-			 && (lostbits | x[0]) & 1)
-				up = 1;
-			break;
-		  case FPI_Round_up:
-			up = 1 - sign;
-			break;
-		  case FPI_Round_down:
-			up = sign;
-		  }
-		if (up) {
-			k = b->wds;
-			b = increment(b);
-			x = b->x;
-			if (irv == STRTOG_Denormal) {
-				if (nbits == fpi->nbits - 1
-				 && x[nbits >> kshift] & 1 << (nbits & kmask))
-					irv =  STRTOG_Normal;
-				}
-			else if (b->wds > k
-			 || ((n = nbits & kmask) !=0
-			      && hi0bits(x[k-1]) < 32-n)) {
-				rshift(b,1);
-				if (++e > fpi->emax)
-					goto ovfl;
-				}
-			irv |= STRTOG_Inexhi;
-			}
-		else
-			irv |= STRTOG_Inexlo;
-		}
-	*bp = b;
-	*exp = e;
-	return irv;
-	}
-
-#ifdef STRTODG_FOR_PCC
-/*
- * Wrapper around gethex() to decode just hexadecimal floating-point
- * constants, with purposely the same prototype as strtodg().
- */
-int strhextodg
-#ifdef KR_headers
-	(s00, se, fpi, exp, bits)
-	CONST char *s; char **se; FPI *fpi; Long *exp; ULong *bits;
-#else
-	(CONST char *s, char **se, FPI *fpi, Long *exp, ULong *bits)
-#endif
-{
-	int irv;
-	Bigint *rvb;
-
-	rvb = 0;
-	irv = gethex(&s, fpi, exp, &rvb, 0);
-	if (se)
-		*se = (char *)s;
-	if (rvb) {
-		copybits(bits, fpi->nbits, rvb);
-		Bfree(rvb);
-	}
-	return irv;
-}
-#endif
 #endif /*SOFTFLOAT*/
