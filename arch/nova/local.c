@@ -29,6 +29,30 @@
 
 /*	this file contains code which is dependent on the target machine */
 
+/*
+ * Description of hexadecimal floating-point types.
+ */
+/* XXX Still need work... */
+#if defined(_MSC_VER) && _MSC_VER<=1600
+#define FS(x)
+#else
+#define FS(x) .x =
+#endif
+FPI fpi_hexfloat32 = {
+	FS(nbits)             24,
+	FS(emin)   1 - 64*4 - 24, /* base is 2^4, bias is 64, and */
+	FS(emax) 508 - 64*4 - 24, /* the point is leftward of MSB */
+	FS(rounding)     1, /* XXX revise */
+	FS(sudden_underflow) 1, /* highest digit should not be 0x0 */
+	FS(explicit_one) 1, /* MSB of significand is explicitely stored! */
+	FS(has_inf_nan)  0, /* highest exponent is regular, no INF/NaN! */
+	FS(has_neg_zero) 0, /* zero with negative sign raises a trap */
+	FS(storage)	32,
+	FS(exp_bias)   64*4 + 24
+};
+FPI fpi_hexfloat64 = { 56, 1-64*4-56,  127*4-64*4-56, 1, 1,
+         1, 0, 0,  64,   64*4+56 };
+
 NODE *
 clocal(NODE *p)
 {
@@ -504,6 +528,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	case FLOAT:
 	case DOUBLE:
 	case LDOUBLE:
+/* XXX Still need work... */
 		cerror("ninval");
 	}
 	return 1;

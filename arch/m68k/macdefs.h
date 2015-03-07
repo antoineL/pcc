@@ -81,6 +81,13 @@
 #define BOOL_TYPE	UCHAR	/* what used to store _Bool */
 
 /*
+ * Floating-point formats.
+ */
+#define FPI_FLOAT	fpi_binary32
+#define FPI_DOUBLE	fpi_binary64
+#define FPI_LDOUBLE	fpi_binaryx80
+
+/*
  * Use large-enough types.
  */
 typedef long long CONSZ;

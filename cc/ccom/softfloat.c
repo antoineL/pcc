@@ -1133,6 +1133,7 @@ SF
 soft_div(SF x1, SF x2)
 {
 /*XXX*/	TWORD t = LDOUBLE; /* XXX should be an argument */
+	ULLong q, r, oppx2;
 	int exp;
 
 	if (soft_isnan(x1))
@@ -1161,96 +1162,36 @@ soft_div(SF x1, SF x2)
 	if ((x1.kind & SF_kmask) == SF_Denormal)
 		x1.kind -= SF_Denormal - SF_Normal;
 	x1.kind ^= x2.kind & SF_Neg;
-	/* XXX possible huge underflow if x1 tiny and x2 very big */
+/* XXX possible huge underflow if x1 tiny and x2 very big => flush to 0 */
 	exp = x1.exponent - x2.exponent + WORKBITS;
 /* XXX copy SFEXCP_ flags? */
-	if (x1.significand < x2.significand) {
+	q = 0;
+	if (x1.significand >= x2.significand) {
 		--exp;
-		//z = lshiftd(0, x1.significand, 32);
+		++q;
+		x1.significand -= x2.significand;
 	}
-	else {
-		//z = lshiftd(0, x1.significand, 31);
-	}
-
-/*
-    expZ = expA - expB + 0x3FFF;
-    if ( sigA < sigB ) {
-        --expZ;
-        rem = softfloat_shortShiftLeft128( 0, sigA, 32 );
-    } else {
-        rem = softfloat_shortShiftLeft128( 0, sigA, 31 );
-    }
-    recip32 = softfloat_approxRecip32_1( sigB>>32 );
-    sigZ = 0;
-    ix = 2;
-    for (;;) {
-        q64 = (uint_fast64_t) (uint32_t) (rem.v64>>2) * recip32;
-        q = (q64 + 0x80000000)>>32;
-        --ix;
-        if ( ix < 0 ) break;
-        rem = softfloat_shortShiftLeft128( rem.v64, rem.v0, 29 );
-        term = softfloat_mul64ByShifted32To128( sigB, q );
-        rem = softfloat_sub128( rem.v64, rem.v0, term.v64, term.v0 );
-        if ( rem.v64 & UINT64_C( 0x8000000000000000 ) ) {
-            --q;
-            rem = softfloat_add128( rem.v64, rem.v0, sigB>>32, sigB<<32 );
-        }
-        sigZ = (sigZ<<29) + q;
-    }
-    //*------------------------------------------------------------------------
-    //*------------------------------------------------------------------------
-    if ( ((q + 1) & 0x3FFFFF) < 2 ) {
-        rem = softfloat_shortShiftLeft128( rem.v64, rem.v0, 29 );
-        term = softfloat_mul64ByShifted32To128( sigB, q );
-        rem = softfloat_sub128( rem.v64, rem.v0, term.v64, term.v0 );
-        term = softfloat_shortShiftLeft128( 0, sigB, 32 );
-        if ( rem.v64 & UINT64_C( 0x8000000000000000 ) ) {
-            --q;
-            rem = softfloat_add128( rem.v64, rem.v0, term.v64, term.v0 );
-        } else if ( softfloat_le128( term.v64, term.v0, rem.v64, rem.v0 ) ) {
-            ++q;
-            rem = softfloat_sub128( rem.v64, rem.v0, term.v64, term.v0 );
-        }
-        if ( rem.v64 | rem.v0 ) q |= 1;
-    }
-    //*------------------------------------------------------------------------
-    //*------------------------------------------------------------------------
-    sigZ = (sigZ<<6) + (q>>23);
-    sigZExtra = (uint64_t) ((uint_fast64_t) q<<41);
-    return
-        softfloat_roundPackToExtF80(
-            signZ, expZ, sigZ, sigZExtra, extF80_roundingPrecision );
-    //*------------------------------------------------------------------------
-    //*------------------------------------------------------------------------
- propagateNaN:
-    uiZ = softfloat_propagateNaNExtF80UI( uiA64, uiA0, uiB64, uiB0 );
-    uiZ64 = uiZ.v64;
-    uiZ0  = uiZ.v0;
-    goto uiZ;
-    //*------------------------------------------------------------------------
-    //*------------------------------------------------------------------------
- invalid:
-    softfloat_raiseFlags( softfloat_flag_invalid );
-    uiZ64 = defaultNaNExtF80UI64;
-    uiZ0  = defaultNaNExtF80UI0;
-    goto uiZ;
-    //*------------------------------------------------------------------------
-    //*------------------------------------------------------------------------
- infinity:
-    uiZ64 = packToExtF80UI64( signZ, 0x7FFF );
-    uiZ0  = UINT64_C( 0x8000000000000000 );
-    goto uiZ;
-    //*------------------------------------------------------------------------
-    //*------------------------------------------------------------------------
- zero:
-    uiZ64 = packToExtF80UI64( signZ, 0 );
-    uiZ0  = 0;
- uiZ:
-    uZ.s.signExp = uiZ64;
-    uZ.s.signif  = uiZ0;
-    return uZ.f;
-*/
-
+	r = x1.significand;
+	oppx2 = (ONES(WORKBITS-1) - x2.significand) + 1;
+	do {
+		q <<= 1;
+		if (r & NORMALMANT) {
+			r &= ~NORMALMANT;
+			r <<= 1;
+			r += oppx2;
+			++q;
+		}
+		else {
+			r <<= 1;
+			if (r >= x2.significand) {
+				r -= x2.significand;		
+				++q;
+			}
+		}
+	} while(q & NORMALMANT == 0);
+	x1.significand = q;
+	x1.exponent = exp;
+	return round_extra(x1, r, t);
 }
 
 /*
