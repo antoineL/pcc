@@ -316,7 +316,7 @@ gcc_keyword(char *str, NODE **n)
 struct atax {
 	int typ;
 	char *name;
-} atax[ATTR_P1_MAX] = {
+} atax[ATTR_P1_MAX+1] = {
 	CS(ATTR_NONE)		{ 0, NULL },
 	CS(GCC_ATYP_STDCALL)	{ A_0ARG, "stdcall" },
 	CS(GCC_ATYP_CDECL)	{ A_0ARG, "cdecl" },
