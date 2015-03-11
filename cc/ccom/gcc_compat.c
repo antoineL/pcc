@@ -320,8 +320,14 @@ struct atax {
 	CS(ATTR_NONE)		{ 0, NULL },
 	CS(GCC_ATYP_STDCALL)	{ A_0ARG, "stdcall" },
 	CS(GCC_ATYP_CDECL)	{ A_0ARG, "cdecl" },
-#ifdef ATTR_MI_TARGET
-	CS(ATTR_MI_TARGET)	{ 0, NULL },
+#ifdef ATTR_MI_TARGET1
+	CS(ATTR_MI_TARGET1)	{ 0, NULL },
+#endif
+#ifdef ATTR_MI_TARGET2
+	CS(ATTR_MI_TARGET2)	{ 0, NULL },
+#endif
+#ifdef ATTR_MI_TARGET3
+	CS(ATTR_MI_TARGET3)	{ 0, NULL },
 #endif
 	CS(ATTR_MI_MAX)		{ 0, NULL },
 	CS(ATTR_COMPLEX)	{ 0, NULL },

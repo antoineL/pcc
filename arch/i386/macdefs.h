@@ -371,4 +371,5 @@ extern int msettings;
 #define	MCPUMSK	0x00f
 
 /* target specific attributes */
-#define	ATTR_MI_TARGET	ATTR_I386_FCMPLRET, ATTR_I386_FPPOP
+#define	ATTR_MI_TARGET1	ATTR_I386_FCMPLRET
+#define	ATTR_MI_TARGET2	ATTR_I386_FPPOP
