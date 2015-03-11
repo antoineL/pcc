@@ -720,7 +720,7 @@ static const unsigned char nLDOUBLE[] = { 0x7f, 0xff, 0xc0, 0, 0, 0, 0, 0, 0, 0,
 }
 #endif
 
-#if !defined(SOFTFLOAT) || defined(FDFLOAT)
+#if defined(SOFTFLOAT) && defined(FDFLOAT)
 static NODE *
 builtin_huge_val(const struct bitable *bt, NODE *a) VALX(SF,DOUBLE)
 /* XXX temporary hack */

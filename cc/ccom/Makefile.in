@@ -151,13 +151,13 @@ regs.o: $(MIPDIR)/regs.c
 scan.o: scan.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ scan.c
 
-softfloat.o: softfloat.c
+softfloat.o: $(srcdir)/softfloat.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $(srcdir)/softfloat.c
 
 stabs.o: $(srcdir)/stabs.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $(srcdir)/stabs.c
 
-strtodg.o: strtodg.c
+strtodg.o: $(srcdir)/strtodg.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $(srcdir)/strtodg.c
 
 symtabs.o: $(srcdir)/symtabs.c
