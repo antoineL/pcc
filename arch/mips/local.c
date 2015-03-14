@@ -253,6 +253,10 @@ clocal(NODE *p)
 		m = p->n_type;
 
 		if (o == ICON) {
+/*
+ * XXX Looks like this code is no longer needed here;
+ * see revision 1.147 of arch/i386/local.c, 2011-06-02 16:40:56 +0200
+ */
 			CONSZ val = l->n_lval;
 
 			if (!ISPTR(m)) /* Pointers don't need to be conv'd */
@@ -292,7 +296,7 @@ clocal(NODE *p)
 			case DOUBLE:
 			case FLOAT:
 				l->n_op = FCON;
-				l->n_dcon = val;
+				l->n_dcon = FLOAT_FROM_INT(val, l->n_type, m);
 				break;
 			default:
 				cerror("unknown type %d", m);
@@ -301,7 +305,10 @@ clocal(NODE *p)
 			nfree(p);
 			p = l;
 		} else if (o == FCON) {
-			l->n_lval = l->n_dcon;
+			if (p->n_type == BOOL)
+				l->n_lval = !FLOAT_ISZERO(l->n_dcon);
+			else
+				l->n_lval =  FLOAT_TO_INT(l->n_dcon, m);
 			l->n_sp = NULL;
 			l->n_op = ICON;
 			l->n_type = m;

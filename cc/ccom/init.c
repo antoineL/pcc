@@ -290,15 +290,15 @@ inval(CONSZ off, int fsz, NODE *p)
 			       (int)t, astypnames[t]);
 			return;
 		}
-		fpi = fpis[t-FLOAT];
+		fpi = fpis[t - FLOAT];
 		sf = p->n_dcon;
 		exp = soft_pack(&sf, t);
-		fracbits = fpi->nbits-1;
+		fracbits = fpi->nbits - 1;
 		if (fpi->explicit_one) ++fracbits;
-		p->n_lval = sf.significand & ((U_CONSZ)1<<fracbits)-1;
+		p->n_lval = sf.significand & (((U_CONSZ)1 << fracbits) - 1);
 		p->n_lval |= exp << fracbits;
-		/* XXX or-ing sign might be unnecessary */
-		if (sf.kind & SF_Neg) p->n_lval |= ((U_CONSZ)1<<(fpi->storage-1));
+		if (sf.kind & SF_Neg)
+			p->n_lval |= ((U_CONSZ)1 << (fpi->storage-1));
 		p->n_op = ICON;
 		p->n_type = ti;
 		p->n_sp = NULL;
