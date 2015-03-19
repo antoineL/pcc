@@ -1963,6 +1963,12 @@ eprint(NODE *p, int down, int *a, int *b)
 	printf("%p) %s, ", p, copst(p->n_op));
 	if (p->n_op == XARG || p->n_op == XASM)
 		printf("id '%s', ", p->n_name);
+#ifdef SOFTFLOAT
+	if (p->n_op == FCON) {
+		printf("0x%llxp%d, 0x%x, ", p->n_dcon.significand, p->n_dcon.exponent, p->n_dcon.kind);
+	}
+	else
+#endif
 	if (ty == LTYPE) {
 		printf(CONFMT, p->n_lval);
 		if (p->n_op == NAME || p->n_op == ICON)
@@ -2684,11 +2690,23 @@ p2tree(NODE *p)
 
 	printf("%d\t", p->n_op);
 
+#ifdef SOFTFLOAT
+	if (p->n_op == FCON) {
+/* XXX revise to handle sign, INF, NAN */
+		printf("0x%llxp%d\t", p->n_dcon.significand, p->n_dcon.exponent);
+	}
+	else
+#endif
 	if (ty == LTYPE) {
 		printf(CONFMT, p->n_lval);
 		printf("\t");
 	}
 	if (ty != BITYPE) {
+#ifdef SOFTFLOAT
+		if (p->n_op == FCON)
+			printf("%x", p->n_dcon.kind);
+		else
+#endif
 		if (p->n_op == NAME || p->n_op == ICON)
 			printf("0\t");
 		else
