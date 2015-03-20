@@ -787,7 +787,7 @@ round_extra(SF sf, ULLong extra, TWORD t)
 
 /*
  * Convert from integer type f to floating-point type t.
- * Rounds correctly to the target type (subject to FLT_EVAL_METHOD.)
+ * Rounds correctly to the target type (NOT subject to FLT_EVAL_METHOD.)
  */
 SF
 soft_from_int(CONSZ ll, TWORD f, TWORD t)
@@ -802,7 +802,7 @@ soft_from_int(CONSZ ll, TWORD f, TWORD t)
 		rv.kind |= SF_Neg, ll = -ll;
 	rv.significand = ll; /* rv.exponent already 0 */
 /* XXX warning if SFEXCP_Inex? */
-	return SF_ROUND(rv, EVAL_TYPE(t));
+	return SF_ROUND(rv, t);
 }
 
 /*

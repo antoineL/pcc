@@ -282,10 +282,16 @@ buildtree(int o, NODE *l, NODE *r)
 				goto runtime; /* HW dependent */
 #endif
 		t = (l->n_type > r->n_type ? l->n_type : r->n_type);
+#if defined(TARGET_FLT_EVAL_METHOD) && TARGET_FLT_EVAL_METHOD > 0
+#define	EVAL_TYPE(t)	((t)-FLOAT > TARGET_FLT_EVAL_METHOD ? t : \
+				TARGET_FLT_EVAL_METHOD+FLOAT)
+#else
+#define	EVAL_TYPE(t)	(t)
+#endif
 		if (l->n_op == ICON)
-			l->n_dcon = FLOAT_FROM_INT(l->n_lval, l->n_type, t);
+			l->n_dcon = FLOAT_FROM_INT(l->n_lval, l->n_type, EVAL_TYPE(t));
 		if (r->n_op == ICON)
-			r->n_dcon = FLOAT_FROM_INT(r->n_lval, r->n_type, t);
+			r->n_dcon = FLOAT_FROM_INT(r->n_lval, r->n_type, EVAL_TYPE(t));
 		switch(o){
 		case PLUS:
 		case MINUS:
