@@ -299,16 +299,20 @@ buildtree(int o, NODE *l, NODE *r)
 		case DIV:
 			switch (o) {
 			case PLUS:
-				l->n_dcon = FLOAT_PLUS(l->n_dcon, r->n_dcon, t);
+				l->n_dcon = FLOAT_PLUS(l->n_dcon, r->n_dcon,
+						       EVAL_TYPE(t));
 				break;
 			case MINUS:
-				l->n_dcon = FLOAT_MINUS(l->n_dcon, r->n_dcon, t);
+				l->n_dcon = FLOAT_MINUS(l->n_dcon, r->n_dcon,
+						        EVAL_TYPE(t));
 				break;
 			case MUL:
-				l->n_dcon = FLOAT_MUL(l->n_dcon, r->n_dcon, t);
+				l->n_dcon = FLOAT_MUL(l->n_dcon, r->n_dcon,
+						      EVAL_TYPE(t));
 				break;
 			case DIV:
-				l->n_dcon = FLOAT_DIV(l->n_dcon, r->n_dcon, t);
+				l->n_dcon = FLOAT_DIV(l->n_dcon, r->n_dcon,
+						      EVAL_TYPE(t));
 				break;
 			}
 			l->n_op = FCON;

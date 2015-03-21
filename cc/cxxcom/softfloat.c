@@ -389,15 +389,16 @@ floatcon(char *s)
  * e = (b-1023) by 52:
  *	fpi->emin = 1 - 1023 - 52
  *	fpi->emax = 1046 - 1023 - 52
- * For fpi_binary64 initialization, we actually write -53 + 1 rather than
- * -52, to emphasize that there are 53 bits including one implicit bit which
- * is at the left of the binary point.
+ * For fpi_binary64 initialization, we actually write -53+1 rather than -52,
+ * to emphasize that there are 53 bits including one implicit bit at the
+ * left of the binary point.
  * Field fpi->rounding indicates the desired rounding direction, with
  * possible values
  *	FPI_Round_zero = toward 0,
  *	FPI_Round_near = unbiased rounding -- the IEEE default,
  *	FPI_Round_up = toward +Infinity, and
  *	FPI_Round_down = toward -Infinity
+ *	FPI_Round_near_from0 = to nearest, ties always away from 0
  * given in pass1.h.
  *
  * Field fpi->sudden_underflow indicates whether computations should return
@@ -406,12 +407,14 @@ floatcon(char *s)
  * exponent = fpi->emin.
  *
  * Fields fpi->explicit_one, fpi->storage, and fpi->exp_bias are only
- * relevant when the number are finally packed into interchange format.
+ * relevant when the numbers are finally packed into interchange format.
+ * If bit 1 is the lowest in the significand, bit fpi->storage has the sign.
  * 
  * Some architectures do not use IEEE arithmetic but can nevertheless use
  * the same parametrization. They should provide their own FPI objects.
  * Fields fpi->has_inf_nan and fpi->has_neg_zero cover the non-IEEE cases
  * of lacking respectively the use of infinities and NaN, and negative zero.
+ * Field fpi->has_radix_16 is for architectures (IBM, DG Nova) with base 16.
  *
  * In this implementation, the bits are stored in one large integer
  * (unsigned long long); this limits the number of bits to 64.
@@ -420,22 +423,17 @@ floatcon(char *s)
  *	- (obviously) 2's complement
  *	- long long is (at least) 64 bits
  *	- CONSZ is (at least) 64 bits
+ *
+ * The operations are rounded according to the indicated type.
+ * If because of FLT_EVAL_METHOD, the precision has to be greater,
+ * this should be handled by the calling code.
  */
 
 /*
  * API restrictions:
  *	- type information should be between FLOAT and LDOUBLE
- * XXX	- operations (+, -, *, /) miss the type
- * XXX	- missing complex * and /
+ * XXX	- missing complex operations (particularly * and /)
  */
-
-/* XXX explanations about FLT_EVAL_METHOD */
-#if defined(TARGET_FLT_EVAL_METHOD) && TARGET_FLT_EVAL_METHOD > 0
-#define	EVAL_TYPE(t)	((t)-FLOAT > TARGET_FLT_EVAL_METHOD ? t : \
-				TARGET_FLT_EVAL_METHOD+FLOAT)
-#else
-#define	EVAL_TYPE(t)	(t)
-#endif
 
 #ifndef Long
 #define Long int
@@ -749,7 +747,7 @@ round_extra(SF sf, ULLong extra, TWORD t)
 				doinc = 1;
 			else if (rd == FPI_Round_near && z.lo == NORMALMANT)
 				doinc = z.hi & 1;
-			else if (rd == FPI_Round_near_ties_up && z.lo == NORMALMANT)
+			else if (rd == FPI_Round_near_from0 && z.lo == NORMALMANT)
 				doinc = 1;
 		}
 		if (doinc) z.hi++;
@@ -787,7 +785,7 @@ round_extra(SF sf, ULLong extra, TWORD t)
 
 /*
  * Convert from integer type f to floating-point type t.
- * Rounds correctly to the target type (subject to FLT_EVAL_METHOD.)
+ * Rounds correctly to the target type.
  */
 SF
 soft_from_int(CONSZ ll, TWORD f, TWORD t)
@@ -802,7 +800,7 @@ soft_from_int(CONSZ ll, TWORD f, TWORD t)
 		rv.kind |= SF_Neg, ll = -ll;
 	rv.significand = ll; /* rv.exponent already 0 */
 /* XXX warning if SFEXCP_Inex? */
-	return SF_ROUND(rv, EVAL_TYPE(t));
+	return SF_ROUND(rv, t);
 }
 
 /*
@@ -998,7 +996,6 @@ soft_plus(SF x1, SF x2, TWORD t)
 		return x1;
 	else if (soft_isnan(x2))
 		return x2;
-	t = EVAL_TYPE(t);
 	switch ((x1.kind & SF_Neg) - (x2.kind & SF_Neg)) {
 	  case SF_Neg - 0:
 		return soft_sub(x2, SF_NEG(x1), - (int)t);
@@ -1015,7 +1012,6 @@ soft_minus(SF x1, SF x2, TWORD t)
 		return x1;
 	else if (soft_isnan(x2))
 		return x2;
-	t = EVAL_TYPE(t);
 	if ((x1.kind & SF_Neg) != (x2.kind & SF_Neg))
 		return soft_add(x1, SF_NEG(x2), t);
 	else if (soft_isz(x1) && soft_isz(x2))
@@ -1052,7 +1048,6 @@ soft_mul(SF x1, SF x2, TWORD t)
 		x2.kind ^= x1.kind & SF_Neg;
 		return x2;
 	}
-	t = EVAL_TYPE(t);
 	assert(x1.significand && x2.significand);
 	while (x1.significand < NORMALMANT)
 		x1.significand <<= 1, x1.exponent--;
@@ -1119,7 +1114,6 @@ soft_div(SF x1, SF x2, TWORD t)
 /* XXX warns? */
 		return infsf((x1.kind & SF_Neg) ^ (x1.kind & SF_Neg));
 	}
-	t = EVAL_TYPE(t);
 	assert(x1.significand && x2.significand);
 	while (x1.significand < NORMALMANT)
 		x1.significand <<= 1, x1.exponent--;
@@ -1413,6 +1407,7 @@ soft_pack(SF *psf, TWORD t)
 
 /*
  * Conversions from decimal and hexadecimal strings.
+ * Rounds correctly to the target type (subject to FLT_EVAL_METHOD.)
  */
 NODE *
 floatcon(char *str)
@@ -1455,14 +1450,20 @@ floatcon(char *str)
 		break;
 	}
 	if (sfx[-1] == 'i') {
-/* XXX warns if two 'i'? (accepted through scan.l right now */
+/* XXX warns if two 'i'? (accepted through scan.l right now) */
 #ifndef NO_COMPLEX
 /* XXX warns? */
 #endif
 		++im;
 		--sfx;
 	}
-	fpi = fpis[EVAL_TYPE(tw)-FLOAT];
+#ifdef TARGET_FLT_EVAL_METHOD
+	fpi = fpis[tw > TARGET_FLT_EVAL_METHOD + FLOAT ? tw - FLOAT :
+			TARGET_FLT_EVAL_METHOD];
+#else
+	fpi = fpis[tw - FLOAT];
+#endif
+
 	k = strtodg(str, &eptr, fpi, &expt, bits);
 	if (eptr != sfx) /* XXX can happen with "strange" FP constants, like 1.0ifi or 2.LL */
 		uerror("Botch in floatcon, sfx-eptr=%d", (int)(sfx-eptr));

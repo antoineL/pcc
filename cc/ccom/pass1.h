@@ -441,7 +441,7 @@ enum {	/* FPI.rounding values: same as FLT_ROUNDS */
 	FPI_Round_up = 2,	/* same meaning as FE_UPWARD */
 	FPI_Round_down = 3,	/* same meaning as FE_DOWNWARD */
 /* Warning: if adding new modes, keep same meaning for 2 low bits. */
-	FPI_Round_near_ties_up = 5, /* to nearest but ties up (Vax) */
+	FPI_Round_near_from0 = 5, /* to nearest but ties up (Vax) */
 };
 
 extern FPI * fpis[3], /* FLOAT, DOUBLE, LDOUBLE, respectively */

@@ -641,6 +641,7 @@ builtin_nanx(const struct bitable *bt, NODE *a)
 #ifndef SOFTFLOAT
 		memcpy(&a->n_dcon, nLDOUBLE, sizeof(a->n_dcon));
 #else
+/* XXX check if fpis[bt->rt - FLOAT]->has_inf_nan */
 		a->n_dcon.kind = SF_NaN;
 #endif
 	} else
