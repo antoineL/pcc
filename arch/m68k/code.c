@@ -184,6 +184,7 @@ bjobcode(void)
 	astypnames[DOUBLE] = astypnames[ULONGLONG];
 #if SZLDOUBLE==64
 	astypnames[LDOUBLE] = astypnames[ULONGLONG];
+	fpis[LDOUBLE].storage = 96;
 #endif
 #endif
 }

@@ -157,25 +157,10 @@ clocal(NODE *p)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
-
 	if (p->n_op != FCON)
 		return;
-
-	sp = tmpalloc(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->slevel = 1;
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
-
-	defloc(sp);
-	ninval(0, tsize(p->n_type, p->n_df, p->n_ap), p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;
-	p->n_sp = sp;
+	/* Write all float constants to memory */
+	fconmem(p);
 }
 
 int

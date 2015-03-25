@@ -565,7 +565,7 @@ myp2tree(NODE *p)
 	if (p->n_op != FCON)
 		return;
 
-#ifdef mach_amd64
+#ifndef SOFTFLOAT
 	{
 		/* Do not lose negative zeros */
 		long long ll[2];
@@ -575,28 +575,10 @@ myp2tree(NODE *p)
 		if (ll[0] == 0 && ss == 0)
 			return;
 	}
-#else
-#error fixme
 #endif
-
 	/* XXX should let float constants follow */
-	sp = IALLOC(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->sap = NULL;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
-	sp->sname = sp->soname = NULL;
-
-	locctr(DATA, sp);
-	defloc(sp);
-	ninval(0, tsize(sp->stype, sp->sdf, sp->sap), p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;
-	p->n_sp = sp;
+	/* Write all float constants to memory */
+	fconmem(p);
 }
 
 /*
@@ -664,20 +646,23 @@ ninval(CONSZ off, int fsz, NODE *p)
 {
 #ifdef SOFTFLOAT
 #if SZLDOUBLE>64
+	NODE *q;
 	SF sf;
 	int exp;
 
 	if (p->n_type == LDOUBLE) {
 		sf = p->n_dcon;
 		exp = soft_pack(&sf, LDOUBLE);
-		p->n_lval = sf.significand;
-		p->n_op = ICON;
-		p->n_type = ULONG;
-		p->n_sp = NULL;
-		inval(off, 64, p);
-		p->n_lval = exp & 0x7fff;
-		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
-		inval(off+64, 64, p);
+		q = ccopy(p);
+		q->n_lval = sf.significand;
+		q->n_op = ICON;
+		q->n_type = ULONG;
+		q->n_sp = NULL;
+		inval(off, 64, q);
+		q->n_lval = exp & 0x7fff;
+		if (sf.kind & SF_Neg) q->n_lval |= 0x8000;
+		inval(off+64, 64, q);
+		tfree(q);
 		return 1;
 	}
 #endif

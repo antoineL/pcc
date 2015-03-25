@@ -814,7 +814,6 @@ fixnames(NODE *p, void *arg)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
 
 	if (kflag)
 		fixnames(p, 0);
@@ -826,25 +825,8 @@ myp2tree(NODE *p)
 
 	if (p->n_op != FCON)
 		return;
-
-	sp = IALLOC(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->sap = 0;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
-	sp->sname = sp->soname = NULL;
-
-	locctr(DATA, sp);
-	defloc(sp);
-	ninval(0, tsize(sp->stype, sp->sdf, sp->sap), p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;
-	p->n_sp = sp;
-
+	/* Write all float constants to memory */
+	fconmem(p);
 	if (kflag) {
 		NODE *q = optim(picstatic(tcopy(p)));
 		*p = *q;
@@ -929,6 +911,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 	union { float f; double d; long double l; int i[3]; } u;
 #else
 #if SZLDOUBLE>64
+	NODE *q;
 	SF sf;
 	int exp;
 #endif
@@ -951,22 +934,24 @@ ninval(CONSZ off, int fsz, NODE *p)
 	case LDOUBLE:
 		sf = p->n_dcon;
 		exp = soft_pack(&sf, LDOUBLE);
-		p->n_lval = sf.significand;
-		p->n_op = ICON;
-		p->n_type = ULONGLONG;
-		p->n_sp = NULL;
-		inval(off, 64, p);
-		p->n_lval = exp & 0x7fff;
-		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
+		q = ccopy(p);
+		q->n_lval = sf.significand;
+		q->n_op = ICON;
+		q->n_type = ULONGLONG;
+		q->n_sp = NULL;
+		ninval(off, 64, q);
+		q->n_lval = exp & 0x7fff;
+		if (sf.kind & SF_Neg) q->n_lval |= 0x8000;
 #if SZLDOUBLE==80
-		p->n_type = USHORT;
-		inval(off+64, 16, p);
+		q->n_type = USHORT;
+		inval(off+64, 16, q);
 #elif SZLDOUBLE==96
-		p->n_type = UNSIGNED;
-		inval(off+64, 32, p);
+		q->n_type = UNSIGNED;
+		inval(off+64, 32, q);
 #else /*SZLDOUBLE==128*/
-		inval(off+64, 64, p);
+		ninval(off+64, 64, q);
 #endif
+		tfree(q);
 		break;
 #endif
 #else

@@ -310,6 +310,8 @@ void extdec(struct symtab *);
 void defzero(struct symtab *);
 int falloc(struct symtab *, int, NODE *);
 TWORD ctype(TWORD);  
+void outfcon(NODE *p);
+void fconmem(NODE *p);
 void inval(CONSZ, int, NODE *);
 int ninval(CONSZ, int, NODE *);
 void infld(CONSZ, int, CONSZ);
@@ -413,12 +415,14 @@ enum {	/* SF.kind values; same as STRTODG_* values */
 	SF_kmask	= 7,
 
 	/* The following may be or-ed into one of the above values. */
-	SF_Neg		= 0x08, /* does not affect SFEXCP_Inex(lo|hi) */
-	SFEXCP_Inexlo	= 0x10, /* returned result rounded toward zero */
-	SFEXCP_Inexhi	= 0x20, /* returned result rounded away from zero */
-	SFEXCP_Inexact	= 0x30,
-	SFEXCP_Underflow= 0x40,
-	SFEXCP_Overflow	= 0x80
+	SF_Neg		= 0x80, /* does not affect SFEXCP_Inex(lo|hi) */
+	SFEXCP_Inexlo	= 0x100, /* returned result rounded toward zero */
+	SFEXCP_Inexhi	= 0x200, /* returned result rounded away from zero */
+	SFEXCP_Inexact	= 0x300,
+	SFEXCP_Underflow= 0x400,
+	SFEXCP_Overflow	= 0x800,
+	SFEXCP_DivByZero= 0x1000,
+	SFEXCP_Invalid	= 0x2000
 };
 
 typedef struct FPI {
@@ -454,25 +458,16 @@ extern FPI * fpis[3], /* FLOAT, DOUBLE, LDOUBLE, respectively */
 	fpi_binary16,	/* IEEE 754:2008 "half-precision" */
 	fpi_binaryx80;	/* usual IEEE double extended */
 
-int soft_pack(SF *, TWORD);
+#ifdef FDFLOAT
 SF soft_neg(SF);
-#ifndef FDFLOAT
-SF soft_cast(SF, TWORD);
-#else
-/* XXX mixed casts between float types and conversions from integers */
+/* XXX not a cast, conversion from integer to float types */
 SF soft_cast(CONSZ v, TWORD);
-#endif
-#ifndef FDFLOAT
-SF soft_plus(SF, SF, TWORD);
-SF soft_minus(SF, SF, TWORD);
-SF soft_mul(SF, SF, TWORD);
-SF soft_div(SF, SF, TWORD);
-#else
+#define	soft_from_int(v,f,t)	soft_cast(v,t)
+#define	soft_fcast(v,t)		(v) /* XXX not losing precision */
 SF soft_plus(SF, SF);
 SF soft_minus(SF, SF);
 SF soft_mul(SF, SF);
 SF soft_div(SF, SF);
-#endif
 int soft_cmp_eq(SF, SF);
 int soft_cmp_ne(SF, SF);
 int soft_cmp_ge(SF, SF);
@@ -480,23 +475,39 @@ int soft_cmp_gt(SF, SF);
 int soft_cmp_le(SF, SF);
 int soft_cmp_lt(SF, SF);
 int soft_isz(SF);
-#ifndef FDFLOAT
-int soft_isinf(SF);
-int soft_isnan(SF);
-int soft_cmp_unord(SF, SF);
-SF soft_from_int(CONSZ, TWORD src_int_ty, TWORD dst_float_ty);
-CONSZ soft_to_int(SF, TWORD);
-#else
-#define	soft_from_int(v,f,t)	soft_cast(v,t)
+#define	soft_isnan(v)		0
 CONSZ soft_val(SF);
 #define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
+
+#else
+SF zerosf(int neg);
+SF infsf(int neg);
+SF nansf(void);
+SF hugesf(int kind, TWORD);
+CONSZ soft_signbit(SF);
+SF soft_neg(SF);
+SF soft_copysign(SF, SF);
+SF soft_from_int(CONSZ, TWORD src_int_ty, TWORD dst_float_ty);
+CONSZ soft_to_int(SF, TWORD);
+SF soft_fcast(SF, TWORD);
+SF soft_plus(SF, SF, TWORD);
+SF soft_minus(SF, SF, TWORD);
+SF soft_mul(SF, SF, TWORD);
+SF soft_div(SF, SF, TWORD);
+int soft_isz(SF);
+int soft_isnan(SF);
+int soft_cmp_eq(SF, SF);
+int soft_cmp_ne(SF, SF);
+int soft_cmp_ge(SF, SF);
+int soft_cmp_gt(SF, SF);
+int soft_cmp_le(SF, SF);
+int soft_cmp_lt(SF, SF);
+int soft_cmp_unord(SF, SF);
+int soft_pack(SF *, TWORD);
+NODE * fcon2icon(NODE *);
 #endif
 #define FLOAT_NEG(sf)		soft_neg(sf)
-#ifndef FDFLOAT
-#define	FLOAT_CAST(x,t)		soft_cast(x,t)
-#else
-#define	FLOAT_CAST(x,t)		(x) /* XXX missing work */
-#endif
+#define	FLOAT_CAST(x,t)		soft_fcast(x,t)
 #define	FLOAT_FROM_INT(v,f,t)	soft_from_int(v, f, t)
 #define	FLOAT_TO_INT(sf,t)	soft_to_int(sf, t)
 #ifndef FDFLOAT
@@ -511,6 +522,7 @@ CONSZ soft_val(SF);
 #define	FLOAT_DIV(x1,x2,t)	soft_div(x1, x2)
 #endif
 #define	FLOAT_ISZERO(sf)	soft_isz(sf)
+#define	FLOAT_ISNAN( sf)	soft_isnan(sf)
 #define FLOAT_EQ(x1,x2)		soft_cmp_eq(x1, x2)
 #define FLOAT_NE(x1,x2)		soft_cmp_ne(x1, x2)
 #define FLOAT_GE(x1,x2)		soft_cmp_ge(x1, x2)
@@ -529,6 +541,7 @@ CONSZ soft_val(SF);
 #define	FLOAT_MUL(x1,x2,t)	(x1) * (x2)
 #define	FLOAT_DIV(x1,x2,t)	(x1) / (x2)
 #define	FLOAT_ISZERO(p)		(p) == 0.0
+#define	FLOAT_ISNAN(p)		(p) != (p)
 #define FLOAT_EQ(x1,x2)		(x1) == (x2)
 #define FLOAT_NE(x1,x2)		(x1) != (x2)
 #define FLOAT_GE(x1,x2)		(x1) >= (x2)

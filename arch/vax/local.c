@@ -204,8 +204,6 @@ r1arg(NODE *p, NODE *q)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
-
 	if ((cdope(p->n_op) & CALLFLG) && p->n_left->n_op == ADDROF &&
 	    p->n_left->n_left->n_op == NAME) {
 		NODE *q = p->n_left->n_left;
@@ -216,23 +214,8 @@ myp2tree(NODE *p)
 
 	if (p->n_op != FCON) 
 		return;
-
-	sp = inlalloc(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->sap = 0;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
-
-	defloc(sp);
-	inval(0, tsize(sp->stype, sp->sdf, sp->sap), p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;
-	p->n_sp = sp;
-
+	/* Write all float constants to memory */
+	fconmem(p);
 }
 
 /*
@@ -355,6 +338,7 @@ ninval(CONSZ off, int fsz, NODE *p)
 {
 #ifdef SOFTFLOAT
 /* Reminder: Vax floats are PDP-endian. */
+	NODE *q;
 	SF sf;
 	int exp;
 
@@ -362,34 +346,38 @@ ninval(CONSZ off, int fsz, NODE *p)
 	case FLOAT:
 		sf = p->n_dcon;
 		exp = soft_pack(&sf, FLOAT);
-		p->n_lval = (sf.significand >> 16) & 0x7f;
-		p->n_lval |= exp << 7;
-		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
-		p->n_op = ICON;
-		p->n_type = USHORT;
-		p->n_sp = NULL;
-		inval(off, 16, p);
-		p->n_lval = sf.significand & 0xffff;
-		inval(off+16, 16, p);
+		q = ccopy(p);
+		q->n_lval = (sf.significand >> 16) & 0x7f;
+		q->n_lval |= exp << 7;
+		if (sf.kind & SF_Neg) q->n_lval |= 0x8000;
+		q->n_op = ICON;
+		q->n_type = USHORT;
+		q->n_sp = NULL;
+		inval(off, 16, q);
+		q->n_lval = sf.significand & 0xffff;
+		inval(off+16, 16, q);
+		tfree(q);
 		break;
 	case LDOUBLE:
 	case DOUBLE:
 		sf = p->n_dcon;
 		exp = soft_pack(&sf, p->n_type);
-		p->n_lval = sf.significand >> 48;
-		p->n_lval &= (1 << (63 - FPI_DOUBLE.nbits)) - 1;
-		p->n_lval |= exp << (63 - FPI_DOUBLE.nbits);
-		if (sf.kind & SF_Neg) p->n_lval |= 0x8000;
-		p->n_op = ICON;
-		p->n_type = USHORT;
-		p->n_sp = NULL;
-		inval(off, 16, p);
-		p->n_lval = (sf.significand >> 32) & 0xffff;
-		inval(off+16, 16, p);
-		p->n_lval = (sf.significand >> 16) & 0xffff;
-		inval(off+32, 16, p);
-		p->n_lval = sf.significand & 0xffff;
-		inval(off+48, 16, p);
+		q = ccopy(p);
+		q->n_lval = sf.significand >> 48;
+		q->n_lval &= (1 << (63 - FPI_DOUBLE.nbits)) - 1;
+		q->n_lval |= exp << (63 - FPI_DOUBLE.nbits);
+		if (sf.kind & SF_Neg) q->n_lval |= 0x8000;
+		q->n_op = ICON;
+		q->n_type = USHORT;
+		q->n_sp = NULL;
+		inval(off, 16, q);
+		q->n_lval = (sf.significand >> 32) & 0xffff;
+		inval(off+16, 16, q);
+		q->n_lval = (sf.significand >> 16) & 0xffff;
+		inval(off+32, 16, q);
+		q->n_lval = sf.significand & 0xffff;
+		inval(off+48, 16, q);
+		tfree(q);
 		break;
 	default:
 		return 0;

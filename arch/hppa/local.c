@@ -544,10 +544,7 @@ makememcpy(void)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
-	int o = p->n_op;
-
-	if (o != FCON)
+	if (p->n_op != FCON)
 		return;
 
 	/* Write float constants to memory */
@@ -559,22 +556,8 @@ myp2tree(NODE *p)
 	    ALDOUBLE : ALLDOUBLE );
 	deflab1(i = getlab());
 #endif
-	sp = inlalloc(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->ssue = 0;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
 
-	defloc(sp);
-	ninval(0, btdims[p->n_type].suesize, p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;
-	p->n_sp = sp;
-
+	fconmem(p);
 }
 
 /*ARGSUSED*/

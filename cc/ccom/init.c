@@ -215,10 +215,68 @@ char *astypnames[] = { 0, 0, "\t.byte", "\t.byte", "\t.short", "\t.short",
 	"ERR", "ERR", "ERR",
 };
 
+/*
+ * Output a float constant. Node is not freed.
+ */
+void
+outfcon(NODE *p)
+{
+#ifdef SOFTFLOAT
+	NODE *q;
+#endif
+	TWORD t = p->n_type;
+
+	if (p->n_op != FCON || t<FLOAT || t>LDOUBLE)
+		cerror("FCON expected");
+	if (ninval(0, sztable[t], p))
+		return; /* dealt with in local.c */
+#ifdef SOFTFLOAT
+	if ((q = fcon2icon(p)) != NULL) {
+		if (! ninval(0, sztable[t], q))
+			/* not dealt with in local.c */
+			printf("%s\t" CONFMT "\n", astypnames[t], q->n_lval);
+		tfree(q);
+		return;
+	}
+#endif
+	cerror("FP constant type %d should be handled in MD part", (int)t);
+}
+
+/*
+ * Write float constant to memory, and replace with reference.
+ */
+void
+fconmem(NODE *p)
+{
+	struct symtab *sp;
+
+	sp = isinlining ? permalloc(sizeof(struct symtab))
+		: tmpalloc(sizeof(struct symtab));
+	sp->sclass = STATIC;
+	sp->sap = NULL;
+	sp->slevel = 1; /* fake numeric label */
+	sp->soffset = getlab();
+	sp->sflags = 0;
+	sp->stype = p->n_type;
+	sp->squal = (CON >> TSHIFT);
+	sp->sname = sp->soname = NULL;
+
+	locctr(DATA, sp);
+	defloc(sp);
+	outfcon(p);
+
+	p->n_op = NAME;
+	p->n_lval = 0;
+	p->n_sp = sp;
+}
+
 void
 inval(CONSZ off, int fsz, NODE *p)
 {
 	struct symtab *sp;
+#ifdef SOFTFLOAT
+	NODE *q;
+#endif
 	CONSZ val;
 	TWORD t;
 
@@ -226,9 +284,15 @@ inval(CONSZ off, int fsz, NODE *p)
 	if (ANYCX(p) && p->n_left->n_right->n_right->n_op == FCON &&
 	    p->n_left->n_left->n_right->n_op == FCON) {
 		NODE *r = p->n_left->n_right->n_right;
+#if 0
 		int sz = (int)tsize(r->n_type, r->n_df, r->n_ap);
-		inval(off, sz, p->n_left->n_left->n_right);
-		inval(off, sz, r);
+		ninval(off, sz, p->n_left->n_left->n_right);
+		ninval(off, sz, r);
+#else
+/* XXX do we need to cater for off? */
+		outfcon(p->n_left->n_left->n_right);
+		outfcon(r);
+#endif
 		tfree(p);
 		return;
 	}
@@ -248,8 +312,15 @@ inval(CONSZ off, int fsz, NODE *p)
 	t = p->n_type;
 	if (t > BTMASK)
 		t = INTPTR;
-
+#ifdef SOFTFLOAT
+	if (p->n_op == FCON && (q = fcon2icon(p)) != NULL) {
+		tfree(p);
+		p = q;
+		t = p->n_type;
+	}
+#endif
 	val = (CONSZ)(p->n_lval & SZMASK(sztable[t]));
+/* XXX or LDOUBLE? */
 	if (t <= ULONGLONG) {
 		sp = p->n_sp;
 		printf("%s ",astypnames[t]);
@@ -267,7 +338,7 @@ inval(CONSZ off, int fsz, NODE *p)
 				    sp->soname : exname(sp->sname));
 		}
 		printf("\n");
-#ifdef SOFTFLOAT
+#ifdef notanymore
 	} 
 	else if (t <= LDOUBLE) {
 		SF sf;

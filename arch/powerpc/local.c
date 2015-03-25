@@ -695,7 +695,6 @@ void
 myp2tree(NODE *p)
 {
 	int o = p->n_op;
-	struct symtab *sp;
 
 	if (kflag)
 		walkf(p, fixnames, 0);
@@ -704,22 +703,7 @@ myp2tree(NODE *p)
 
 	/* Write float constants to memory */
 	/* Should be voluntary per architecture */
- 
-	sp = IALLOC(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->sap = 0;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
-
-	defloc(sp);
-	ninval(0, tsize(sp->stype, sp->sdf, sp->sap), p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;	
-	p->n_sp = sp;
+	fconmem(p);
 }
 
 /*ARGSUSED*/

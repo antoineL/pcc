@@ -268,7 +268,6 @@ clocal(NODE *p)
 void
 myp2tree(NODE *p)
 {
-	struct symtab *sp;
 	NODE *l;
 
 	if (cdope(p->n_op) & CALLFLG) {
@@ -286,25 +285,8 @@ myp2tree(NODE *p)
 
 	if (p->n_op != FCON)
 		return;
-
-	sp = IALLOC(sizeof(struct symtab));
-	sp->sclass = STATIC;
-	sp->sap = 0;
-	sp->slevel = 1; /* fake numeric label */
-	sp->soffset = getlab();
-	sp->sflags = 0;
-	sp->stype = p->n_type;
-	sp->squal = (CON >> TSHIFT);
-	sp->sname = sp->soname = NULL;
-
-	locctr(DATA, sp);
-	defloc(sp);
-	ninval(0, tsize(sp->stype, sp->sdf, sp->sap), p);
-
-	p->n_op = NAME;
-	p->n_lval = 0;
-	p->n_sp = sp;
-
+	/* Write all float constants to memory */
+	fconmem(p);
 }
 
 /*
@@ -379,21 +361,24 @@ ninval(CONSZ off, int fsz, NODE *p)
 #ifdef SOFTFLOAT
 /* soft 32-bit and 64-bit formats are handled directly in inval() */
 #if SZLDOUBLE>64
+	NODE *q;
 	SF sf;
 	int exp;
 
 	case LDOUBLE:
 		sf = p->n_dcon;
 		exp = soft_pack(&sf, LDOUBLE);
-		p->n_lval = (exp & 0x7fff) << 16;
-		if (sf.kind & SF_Neg) p->n_lval |= 0x80000000;
-		p->n_op = ICON;
-		p->n_type = UNSIGNED;
-		p->n_sp = NULL;
-		inval(off, 32, p);
-		p->n_lval = sf.significand;
-		p->n_type = UNSIGNED;
-		inval(off+32, 64, p);
+		q = ccopy(p);
+		q->n_lval = (exp & 0x7fff) << 16;
+		if (sf.kind & SF_Neg) q->n_lval |= 0x80000000;
+		q->n_op = ICON;
+		q->n_type = UNSIGNED;
+		q->n_sp = NULL;
+		inval(off, 32, q);
+		q->n_lval = sf.significand;
+		q->n_type = UNSIGNED;
+		ninval(off+32, 64, q);
+		tfree(q);
 		break;
 #endif
 #else
