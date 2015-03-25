@@ -824,7 +824,7 @@ myp2tree(NODE *p)
 	    strmemb(p->n_ap)->stype == FLOAT)
 		p->n_ap = attr_add(p->n_ap, attr_new(ATTR_I386_FCMPLRET, 1));
 
-	if (p->n_op != FCON)
+	if (p->n_op != FCON || fcon2icon(p))
 		return;
 
 	sp = IALLOC(sizeof(struct symtab));

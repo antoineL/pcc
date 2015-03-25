@@ -453,7 +453,7 @@ typedef unsigned long long ULLong;
 #define NORMALMANT	ONEZEROES(WORKBITS-1)
 
 #define SF_NEG(sf)	((sf).kind ^= SF_Neg, sf)
-#define SF_ROUND(sf, t)	(round_extra(sf, 0, t))
+#define SF_ROUND(sf, t)	(round(sf, 0, t))
 
 typedef struct DULLong {
 	ULLong hi, lo;
@@ -465,9 +465,11 @@ static SF zerosf(int);
 static SF infsf(int);
 static SF nansf(void);
 static SF hugesf(int, FPI *);
-static DULLong rshiftd_rndodd(ULLong, ULLong, int);
+static DULLong rshiftdro(ULLong, ULLong, int);
 static DULLong lshiftd(ULLong, ULLong, int);
-static SF round_extra(SF, ULLong, TWORD);
+static SF round(SF, ULLong, TWORD);
+static SF sfadd(SF, SF, TWORD);
+static SF sfsub(SF, SF, TWORD);
 
 /* IEEE binary formats, and their interchange format encodings */
 FPI fpi_binary16 = { 11, 1-15-11+1,
@@ -584,7 +586,7 @@ hugesf(int kind, FPI *fpi)
  * Shift right double, rounding to odd.
  */
 static DULLong
-rshiftd_rndodd(ULLong a, ULLong b, int count)
+rshiftdro(ULLong a, ULLong b, int count)
 {
 	struct DULLong z;
 	assert(count >= 0);
@@ -623,7 +625,7 @@ lshiftd(ULLong a, ULLong b, int count)
 typedef int bool;
 
 static SF
-round_extra(SF sf, ULLong extra, TWORD t)
+round(SF sf, ULLong extra, TWORD t)
 {
 	FPI *fpi;
 	ULLong minmant, mant, maxmant;
@@ -692,7 +694,7 @@ round_extra(SF sf, ULLong extra, TWORD t)
 		if (excess < 0)
 			z = lshiftd(sf.significand, extra, -excess);
 		else
-			z = rshiftd_rndodd(sf.significand, extra, excess);
+			z = rshiftdro(sf.significand, extra, excess);
 		sf.significand = z.hi;
 		extra = z.lo;
 		exp += excess;
@@ -740,7 +742,7 @@ round_extra(SF sf, ULLong extra, TWORD t)
 				sf.significand--;
 		}
 		excess = fpi->emin - exp;
-		z = rshiftd_rndodd(sf.significand, extra, excess);
+		z = rshiftdro(sf.significand, extra, excess);
 		doinc = rd == FPI_Round_up;
 		if ((rd & 3) == FPI_Round_near) {
 			if (z.lo > NORMALMANT)
@@ -808,7 +810,7 @@ soft_from_int(CONSZ ll, TWORD f, TWORD t)
  * Drop precision (rounding correctly) and clamp exponent in range.
  */
 SF
-soft_cast(SF sf, TWORD t)
+soft_fcast(SF sf, TWORD t)
 {
 /* XXX warning if SFEXCP_Underflow/Overflow ? */
 	return SF_ROUND(sf, t);
@@ -881,7 +883,7 @@ soft_neg(SF sf)
  * The devil is in the details, like those negative zeroes...
  */
 static SF
-soft_add(SF x1, SF x2, TWORD t)
+sfadd(SF x1, SF x2, TWORD t)
 {
 	SF rv;
 	DULLong z;
@@ -907,22 +909,22 @@ soft_add(SF x1, SF x2, TWORD t)
 	diff = x1.exponent - x2.exponent;
 	if (diff < 0) {
 		rv = x2;
-		z = rshiftd_rndodd(x1.significand, 0, -diff );
+		z = rshiftdro(x1.significand, 0, -diff );
 	}
 	else {
 		rv = x1;
-		z = rshiftd_rndodd(x2.significand, 0, diff );
+		z = rshiftdro(x2.significand, 0, diff );
 	}
 	if ((rv.kind & SF_kmask) == SF_Denormal)
 		rv.kind -= SF_Denormal - SF_Normal;
 	rv.significand += z.hi;
 	if (rv.significand < NORMALMANT) {
 		/* target mantissa overflows */
-		z = rshiftd_rndodd(rv.significand, z.lo, 1);
+		z = rshiftdro(rv.significand, z.lo, 1);
 		rv.significand = z.hi | NORMALMANT;
 		++rv.exponent;
 	}
-	return round_extra(rv, z.lo, t);
+	return round(rv, z.lo, t);
 }
 
 /*
@@ -931,7 +933,7 @@ soft_add(SF x1, SF x2, TWORD t)
  * that rounding rules should be reversed (because the operands were.)
  */
 static SF
-soft_sub(SF x1, SF x2, TWORD t)
+sfsub(SF x1, SF x2, TWORD t)
 {
 	SF rv;
 	DULLong z;
@@ -967,11 +969,11 @@ soft_sub(SF x1, SF x2, TWORD t)
 	}
 	if (diff < 0 || (diff == 0 && x1.significand < x2.significand)) {
 		rv = SF_NEG(x2);
-		z = rshiftd_rndodd(x1.significand, 0, -diff );
+		z = rshiftdro(x1.significand, 0, -diff );
 	}
 	else {
 		rv = x1;
-		z = rshiftd_rndodd(x2.significand, 0, diff );
+		z = rshiftdro(x2.significand, 0, diff );
 	}
 	if ((rv.kind & SF_kmask) == SF_Denormal)
 		rv.kind -= SF_Denormal - SF_Normal;
@@ -982,11 +984,11 @@ soft_sub(SF x1, SF x2, TWORD t)
 		t = -(int)t;
 		rd = fpis[t-FLOAT]->rounding;
 		if ((rd & 3) == FPI_Round_up || (rd & 3) == FPI_Round_down) {
-			rv = round_extra(SF_NEG(rv), z.lo, t);
+			rv = round(SF_NEG(rv), z.lo, t);
 			return SF_NEG(rv);
 		}
 	}
-	return round_extra(rv, z.lo, t);
+	return round(rv, z.lo, t);
 }
 
 SF
@@ -998,11 +1000,11 @@ soft_plus(SF x1, SF x2, TWORD t)
 		return x2;
 	switch ((x1.kind & SF_Neg) - (x2.kind & SF_Neg)) {
 	  case SF_Neg - 0:
-		return soft_sub(x2, SF_NEG(x1), - (int)t);
+		return sfsub(x2, SF_NEG(x1), - (int)t);
 	  case 0 - SF_Neg:
-		return soft_sub(x1, SF_NEG(x2), t);
+		return sfsub(x1, SF_NEG(x2), t);
 	}
-	return soft_add(x1, x2, t);
+	return sfadd(x1, x2, t);
 }
 
 SF
@@ -1013,13 +1015,13 @@ soft_minus(SF x1, SF x2, TWORD t)
 	else if (soft_isnan(x2))
 		return x2;
 	if ((x1.kind & SF_Neg) != (x2.kind & SF_Neg))
-		return soft_add(x1, SF_NEG(x2), t);
+		return sfadd(x1, SF_NEG(x2), t);
 	else if (soft_isz(x1) && soft_isz(x2))
 		return x1; /* special case -0 - -0, should return -0 */
 	else if (x1.kind & SF_Neg)
-		return soft_sub(SF_NEG(x2), SF_NEG(x1), - (int)t);
+		return sfsub(SF_NEG(x2), SF_NEG(x1), - (int)t);
 	else
-		return soft_sub(x1, x2, t);
+		return sfsub(x1, x2, t);
 }
 
 /*
@@ -1086,7 +1088,7 @@ soft_mul(SF x1, SF x2, TWORD t)
 		}
 		extra <<= 1;
 	}
-	return round_extra(x1, extra, t);
+	return round(x1, extra, t);
 }
 
 SF
@@ -1161,7 +1163,7 @@ soft_div(SF x1, SF x2, TWORD t)
 		r += oppx2 / 2;
 		r |= 1; /* rounds to odd */ /* XXX is there special case if power-of-2? */
 	}
-	return round_extra(x1, r, t);
+	return round(x1, r, t);
 }
 
 /*
@@ -1339,7 +1341,7 @@ soft_cmp_gt(SF x1, SF x2)
  * for the target, the calling code should replace it with SF_NaNbits
  * with the adequate bits into the .significand member.
  */
-/* XXX TODO: implement the NaNbits stuff in round_extra() above... */
+/* XXX TODO: implement the NaNbits stuff in round() above... */
 int
 soft_pack(SF *psf, TWORD t)
 {

@@ -215,6 +215,60 @@ char *astypnames[] = { 0, 0, "\t.byte", "\t.byte", "\t.short", "\t.short",
 	"ERR", "ERR", "ERR",
 };
 
+#ifdef SOFTFLOAT
+/*
+ * Try to change a floating-point constant into its integer representation.
+ * Returns 1 if it succeeds to fit.
+ */
+int
+fcon2icon(NODE * p)
+{
+	SF sf;
+	FPI *fpi;
+	int exp, fracbits, t, ti;
+
+	t = p->n_type;
+	if (p->n_op != FCON || t<FLOAT || t>LDOUBLE)
+		return 0;
+#if 1
+	if (strcmp(astypnames[t], "ERR") == 0) {
+		cerror("FP type %d init should be handled in MD part", (int)t);
+		return;
+	}
+	for (ti=0; ti<=LDOUBLE; ++ti)
+		if (astypnames[ti] && strcmp(astypnames[t], astypnames[ti]) == 0)
+			break;
+	if (ti >= FLOAT) {
+		cerror("FP type %d init cannot be handled as %s",
+		       (int)t, astypnames[t]);
+		return;
+	}
+#else
+	for (ti=0; ti<=LDOUBLE; ++ti)
+		if (astypnames[ti] && strcmp(astypnames[t], astypnames[ti]) == 0)
+			break;
+#endif
+	fpi = fpis[t - FLOAT];
+	if (fpi->storage == 0)
+		return 0; /* not stored as sign+exponent+significand */
+	if (~(U_CONSZ)0 >> (fpi->storage-1) == 0)
+		return 0; /* too large */
+	sf = p->n_dcon;
+	exp = soft_pack(&sf, t);
+	fracbits = fpi->nbits - 1;
+	if (fpi->explicit_one) ++fracbits;
+	p->n_lval = sf.significand & (((U_CONSZ)1 << fracbits) - 1);
+	p->n_lval |= ((U_CONSZ)exp) << fracbits;
+	if (sf.kind & SF_Neg)
+		p->n_lval |= ((U_CONSZ)1 << (fpi->storage-1));
+	p->n_op = ICON;
+/* XXX needed to change type? */
+	p->n_type = ti;
+	p->n_sp = NULL;
+	return 1;
+}
+#endif
+
 void
 inval(CONSZ off, int fsz, NODE *p)
 {
@@ -227,6 +281,7 @@ inval(CONSZ off, int fsz, NODE *p)
 	    p->n_left->n_left->n_right->n_op == FCON) {
 		NODE *r = p->n_left->n_right->n_right;
 		int sz = (int)tsize(r->n_type, r->n_df, r->n_ap);
+/* XXX changed to ninval to inval, but lightly tested... */
 		inval(off, sz, p->n_left->n_left->n_right);
 		inval(off, sz, r);
 		tfree(p);
@@ -248,8 +303,12 @@ inval(CONSZ off, int fsz, NODE *p)
 	t = p->n_type;
 	if (t > BTMASK)
 		t = INTPTR;
-
+#ifdef SOFTFLOAT
+	if (p->n_op == FCON && fcon2icon(p))
+		t = p->n_type;
+#endif
 	val = (CONSZ)(p->n_lval & SZMASK(sztable[t]));
+/* XXX or LDOUBLE? */
 	if (t <= ULONGLONG) {
 		sp = p->n_sp;
 		printf("%s ",astypnames[t]);
@@ -267,7 +326,7 @@ inval(CONSZ off, int fsz, NODE *p)
 				    sp->soname : exname(sp->sname));
 		}
 		printf("\n");
-#ifdef SOFTFLOAT
+#ifdef notanymore
 	} 
 	else if (t <= LDOUBLE) {
 		SF sf;

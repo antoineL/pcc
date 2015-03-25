@@ -454,25 +454,16 @@ extern FPI * fpis[3], /* FLOAT, DOUBLE, LDOUBLE, respectively */
 	fpi_binary16,	/* IEEE 754:2008 "half-precision" */
 	fpi_binaryx80;	/* usual IEEE double extended */
 
-int soft_pack(SF *, TWORD);
+#ifdef FDFLOAT
 SF soft_neg(SF);
-#ifndef FDFLOAT
-SF soft_cast(SF, TWORD);
-#else
-/* XXX mixed casts between float types and conversions from integers */
+/* XXX not a cast, conversion from integer to float types */
 SF soft_cast(CONSZ v, TWORD);
-#endif
-#ifndef FDFLOAT
-SF soft_plus(SF, SF, TWORD);
-SF soft_minus(SF, SF, TWORD);
-SF soft_mul(SF, SF, TWORD);
-SF soft_div(SF, SF, TWORD);
-#else
+#define	soft_from_int(v,f,t)	soft_cast(v,t)
+#define	soft_fcast(v,t)		(v) /* XXX not losing precision */
 SF soft_plus(SF, SF);
 SF soft_minus(SF, SF);
 SF soft_mul(SF, SF);
 SF soft_div(SF, SF);
-#endif
 int soft_cmp_eq(SF, SF);
 int soft_cmp_ne(SF, SF);
 int soft_cmp_ge(SF, SF);
@@ -480,23 +471,33 @@ int soft_cmp_gt(SF, SF);
 int soft_cmp_le(SF, SF);
 int soft_cmp_lt(SF, SF);
 int soft_isz(SF);
-#ifndef FDFLOAT
-int soft_isinf(SF);
-int soft_isnan(SF);
-int soft_cmp_unord(SF, SF);
-SF soft_from_int(CONSZ, TWORD src_int_ty, TWORD dst_float_ty);
-CONSZ soft_to_int(SF, TWORD);
-#else
-#define	soft_from_int(v,f,t)	soft_cast(v,t)
 CONSZ soft_val(SF);
 #define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
+
+#else
+SF soft_neg(SF);
+SF soft_from_int(CONSZ, TWORD src_int_ty, TWORD dst_float_ty);
+CONSZ soft_to_int(SF, TWORD);
+SF soft_fcast(SF, TWORD);
+SF soft_plus(SF, SF, TWORD);
+SF soft_minus(SF, SF, TWORD);
+SF soft_mul(SF, SF, TWORD);
+SF soft_div(SF, SF, TWORD);
+int soft_isz(SF);
+int soft_isinf(SF);
+int soft_isnan(SF);
+int soft_cmp_eq(SF, SF);
+int soft_cmp_ne(SF, SF);
+int soft_cmp_ge(SF, SF);
+int soft_cmp_gt(SF, SF);
+int soft_cmp_le(SF, SF);
+int soft_cmp_lt(SF, SF);
+int soft_cmp_unord(SF, SF);
+int soft_pack(SF *, TWORD);
+int fcon2icon(NODE *);
 #endif
 #define FLOAT_NEG(sf)		soft_neg(sf)
-#ifndef FDFLOAT
-#define	FLOAT_CAST(x,t)		soft_cast(x,t)
-#else
-#define	FLOAT_CAST(x,t)		(x) /* XXX missing work */
-#endif
+#define	FLOAT_CAST(x,t)		soft_fcast(x,t)
 #define	FLOAT_FROM_INT(v,f,t)	soft_from_int(v, f, t)
 #define	FLOAT_TO_INT(sf,t)	soft_to_int(sf, t)
 #ifndef FDFLOAT
