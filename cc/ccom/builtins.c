@@ -757,7 +757,7 @@ builtin_nanx(const struct bitable *bt, NODE *a)
 			cerror("nLDOUBLE too small");
 		memcpy(&a->n_dcon, nLDOUBLE, sizeof(a->n_dcon));
 #else
-		a->n_dcon = nansf();
+		a->n_dcon = nansf(0);
 #endif
 	} else
 		a = binhelp(eve(a), bt->rt, &bt->name[10]);

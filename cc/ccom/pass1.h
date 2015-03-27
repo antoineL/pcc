@@ -404,6 +404,28 @@ NODE *nlabel(int label);
 #ifdef SOFTFLOAT
 typedef struct softfloat SF;
 
+#ifdef FDFLOAT
+SF soft_neg(SF);
+/* XXX not a cast, conversion from integer to float types */
+SF soft_cast(CONSZ v, TWORD);
+#define	soft_from_int(v,f,t)	soft_cast(v,t)
+#define	soft_fcast(v,t)		(v) /* XXX not losing precision */
+SF soft_plus(SF, SF);
+SF soft_minus(SF, SF);
+SF soft_mul(SF, SF);
+SF soft_div(SF, SF);
+int soft_cmp_eq(SF, SF);
+int soft_cmp_ne(SF, SF);
+int soft_cmp_ge(SF, SF);
+int soft_cmp_gt(SF, SF);
+int soft_cmp_le(SF, SF);
+int soft_cmp_lt(SF, SF);
+int soft_isz(SF);
+#define	soft_isnan(v)		0
+CONSZ soft_val(SF);
+#define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
+
+#else
 enum {	/* SF.kind values; same as STRTODG_* values */
 	SF_Zero		= 0,
 	SF_Normal	= 1,
@@ -422,7 +444,10 @@ enum {	/* SF.kind values; same as STRTODG_* values */
 	SFEXCP_Underflow= 0x400,
 	SFEXCP_Overflow	= 0x800,
 	SFEXCP_DivByZero= 0x1000,
-	SFEXCP_Invalid	= 0x2000
+	SFEXCP_Invalid	= 0x2000,
+
+	SFEXCP_Aborted	= 0x8000, /* Not IEEE; operation not performed */
+	SFEXCP_ALLmask	= 0xFF00 /* All exceptions (mask) */
 };
 
 typedef struct FPI {
@@ -446,6 +471,8 @@ enum {	/* FPI.rounding values: same as FLT_ROUNDS */
 	FPI_Round_down = 3,	/* same meaning as FE_DOWNWARD */
 /* Warning: if adding new modes, keep same meaning for 2 low bits. */
 	FPI_Round_near_from0 = 5, /* to nearest but ties up (Vax) */
+
+	FPI_RoundNotSet = -4,	/* to implement dynamic rounding */
 };
 
 extern FPI * fpis[3], /* FLOAT, DOUBLE, LDOUBLE, respectively */
@@ -457,32 +484,12 @@ extern FPI * fpis[3], /* FLOAT, DOUBLE, LDOUBLE, respectively */
 #endif
 	fpi_binary16,	/* IEEE 754:2008 "half-precision" */
 	fpi_binaryx80;	/* usual IEEE double extended */
+extern int sf_constrounding,
+	sf_exceptions;
 
-#ifdef FDFLOAT
-SF soft_neg(SF);
-/* XXX not a cast, conversion from integer to float types */
-SF soft_cast(CONSZ v, TWORD);
-#define	soft_from_int(v,f,t)	soft_cast(v,t)
-#define	soft_fcast(v,t)		(v) /* XXX not losing precision */
-SF soft_plus(SF, SF);
-SF soft_minus(SF, SF);
-SF soft_mul(SF, SF);
-SF soft_div(SF, SF);
-int soft_cmp_eq(SF, SF);
-int soft_cmp_ne(SF, SF);
-int soft_cmp_ge(SF, SF);
-int soft_cmp_gt(SF, SF);
-int soft_cmp_le(SF, SF);
-int soft_cmp_lt(SF, SF);
-int soft_isz(SF);
-#define	soft_isnan(v)		0
-CONSZ soft_val(SF);
-#define	soft_to_int(v,t)	soft_val(v) /* XXX signed/unsigned */
-
-#else
-SF zerosf(int neg);
-SF infsf(int neg);
-SF nansf(void);
+SF zerosf(int);
+SF infsf(int);
+SF nansf(int);
 SF hugesf(int kind, TWORD);
 CONSZ soft_signbit(SF);
 SF soft_neg(SF);
@@ -496,6 +503,7 @@ SF soft_mul(SF, SF, TWORD);
 SF soft_div(SF, SF, TWORD);
 int soft_isz(SF);
 int soft_isnan(SF);
+int soft_fpclassify(SF, TWORD);
 int soft_cmp_eq(SF, SF);
 int soft_cmp_ne(SF, SF);
 int soft_cmp_ge(SF, SF);

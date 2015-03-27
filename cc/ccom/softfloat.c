@@ -409,7 +409,20 @@ floatcon(char *s)
  * Fields fpi->explicit_one, fpi->storage, and fpi->exp_bias are only
  * relevant when the numbers are finally packed into interchange format.
  * If bit 1 is the lowest in the significand, bit fpi->storage has the sign.
- * 
+ *
+ * As a result, this is also a slightly restricted software implementation of
+ * IEEE 754:1985 standard. Missing parts, useless in a C compiler, are:
+ * - no soft_unpack(), to convert from external binary{32,64} formats
+ * - no precision control (not required, dropped in :2008)
+ * - no soft_sqrt() operation
+ * - no soft_remainder() operation
+ * - no soft_rint(), _ceil, or _floor rounding operations
+ * - no binary-to-decimal conversion (can use D. Gay's dgtoa.c)
+ * - signaling NaNs (SF_NoNumber; should cause SFEXCP_Invalid on every op)
+ * - fenv-support is pending
+ * - no soft_scalb(), _logb, or _nextafter optional functions
+ * As shown above, it should be easy to make it a complete implementation.
+ *
  * Some architectures do not use IEEE arithmetic but can nevertheless use
  * the same parametrization. They should provide their own FPI objects.
  * Fields fpi->has_inf_nan and fpi->has_neg_zero cover the non-IEEE cases
@@ -453,10 +466,11 @@ typedef unsigned long long ULLong;
 #define NORMALMANT	ONEZEROES(WORKBITS-1)
 
 #define SFNEG(sf)	((sf).kind ^= SF_Neg, sf)
+#define SFCOPYSIGN(sf, src)	\
+	((sf).kind ^= ((sf).kind & SF_Neg) ^ ((src).kind & SF_Neg), (sf))
 #define SFISZ(sf)	(((sf).kind & SF_kmask) == SF_Zero)
 #define SFISINF(sf)	(((sf).kind & SF_kmask) == SF_Infinite)
 #define SFISNAN(sf)	(((sf).kind & SF_kmask) >= SF_NaN)
-#define SF_ROUND(sf, t)	(round(sf, 0, t))
 
 typedef struct DULLong {
 	ULLong hi, lo;
@@ -465,6 +479,7 @@ typedef struct DULLong {
 static DULLong rshiftdro(ULLong, ULLong, int);
 static DULLong lshiftd(ULLong, ULLong, int);
 static SF round(SF, ULLong, TWORD);
+#define SFROUND(sf,t)	(round(sf, 0, t))
 static SF sfadd(SF, SF, TWORD);
 static SF sfsub(SF, SF, TWORD);
 
@@ -507,33 +522,47 @@ FPI * fpis[3] = {
 };
 
 /*
+ * Constant rounding control mode (TS 18661 clause 11).
+ * Default is to have no effect. Set through #pragma STDC FENV_ROUND
+ */
+int sf_constrounding = FPI_RoundNotSet;
+/*
+ * Exceptions raised by functions which do not return a SF; behave like errno
+ */
+int sf_exceptions = 0;
+
+/*
  * Returns a (signed) zero softfloat.
+ * "kind" (sign and exceptions) is merged into.
  */
 SF
-zerosf(int neg)
+zerosf(int kind)
 {
 	SF rv;
 
 	assert(SF_Zero == 0);
+#if 0
+	rv.kind &= ~SF_kmask;
+#else
+	rv.kind = SF_Zero | (kind & ~SF_kmask);
+#endif
 	rv.significand = rv.exponent = rv.kind = 0;
-	if (neg) rv.kind |= SF_Neg;
 	return rv;
 }
 
 /*
  * Returns a (signed) infinite softfloat.
+ * If the target does not support infinites, the "infinite" will propagate
+ * until round() below, where it will be transformed to DBL_MAX and exception
  */
 SF
-infsf(int neg)
+infsf(int kind)
 {
 	SF rv;
 
-/* XXX this is the result of an "division by zero" operation; warns? */
-/* XXX what to do if the platform does not handle Inf? */
-	rv.kind = SF_Infinite;
-	if (neg) rv.kind |= SF_Neg;
+	rv.kind = SF_Infinite | (kind & ~SF_kmask);
 	rv.significand = NORMALMANT;
-	rv.exponent = 24576;
+	rv.exponent = fpis[LDOUBLE]->emax + 1;
 	return rv;
 }
 
@@ -541,21 +570,18 @@ infsf(int neg)
  * Returns a NaN softfloat.
  */
 SF
-nansf(void)
+nansf(int kind)
 {
 	SF rv;
 
-/* XXX this is the result of an "invalid" operation; warns? */
-/* XXX what to do if the platform does not handle NaN, and source has 0/0? */
-	rv.kind = SF_NaN;
+	rv.kind = SF_NaN | (kind & ~SF_kmask);
 	rv.significand = 3 * ONEZEROES(WORKBITS-2);
-	rv.exponent = 24576;
+	rv.exponent = fpis[LDOUBLE]->emax + 1;
 	return rv;
 }
 
 /*
  * Returns a (signed) huge, perhaps infinite, softfloat.
- * "kind" (sign, exceptions) is merged into.
  */
 SF
 hugesf(int kind, TWORD t)
@@ -642,10 +668,12 @@ round(SF sf, ULLong extra, TWORD t)
 			sf.kind &= ~SF_Neg;
 		/* FALLTHROUGH */
 	  default:
+/* XXX revise: SF_NaN escapes here, but what to do if !fpi->has_inf_nan */
 		return sf;
 	  case SF_Infinite:
-/* XXX revise */
-		return fpi->has_inf_nan ? sf : hugesf(sf.kind, t);
+		return fpi->has_inf_nan ? sf :
+/* XXX revise: IEEE says overflow and invalid cannot be both, but this is for VAX... */
+			hugesf(sf.kind | SFEXCP_Overflow | SFEXCP_Invalid, t);
 	  case SF_NaNbits:
 		cerror("Unexpected softfloat NaNbits");
 		sf.kind -= SF_NaNbits - SF_NaN;
@@ -708,6 +736,8 @@ round(SF sf, ULLong extra, TWORD t)
 /* XXX check limit cases (emin, emin-1, emin-2) to avoid double rounding... */
 
 	rd = fpi->rounding;
+	if (sf_constrounding != FPI_RoundNotSet)
+		rd = sf_constrounding;
 	if (sf.kind & SF_Neg && rd == FPI_Round_down)
 		rd = FPI_Round_up;
 	else if (sf.kind & SF_Neg && rd == FPI_Round_up)
@@ -718,7 +748,7 @@ round(SF sf, ULLong extra, TWORD t)
 			doinc = sf.significand & 1;
 		else if ((rd & 3) == FPI_Round_near && extra >= NORMALMANT)
 			doinc = 1;
-/* XXX set SFEXCP_Inex(hi|lo) ? */
+/* XXX set SFEXCP_Inex(hi|lo) ? later ? */
 		if (doinc) {
 			if (sf.significand == maxmant) {
 				sf.significand = minmant;
@@ -731,11 +761,9 @@ round(SF sf, ULLong extra, TWORD t)
 	else doinc = 0;
 
 	if (exp < fpi->emin) {
-		if (fpi->sudden_underflow || exp < fpi->emin - fpi->nbits) {
-			sf = zerosf(sf.kind & SF_Neg);
-			sf.kind |= SFEXCP_Inexlo | SFEXCP_Underflow;
-			return sf;
-		}
+		sf.kind |= SFEXCP_Underflow;
+		if (fpi->sudden_underflow || exp < fpi->emin - fpi->nbits)
+			return zerosf(sf.kind | SFEXCP_Inexlo);
 		if (doinc) {
 			if (sf.significand == minmant) {
 				sf.significand = maxmant;
@@ -746,6 +774,7 @@ round(SF sf, ULLong extra, TWORD t)
 		}
 		excess = fpi->emin - exp;
 		z = rshiftdro(sf.significand, extra, excess);
+/* XXX need to consider exra here... */
 		doinc = rd == FPI_Round_up;
 		if ((rd & 3) == FPI_Round_near) {
 			if (z.lo > NORMALMANT)
@@ -756,16 +785,21 @@ round(SF sf, ULLong extra, TWORD t)
 				doinc = 1;
 		}
 		if (doinc) z.hi++;
+/* XXX revise: it seems there should be a missed case where the delivered result
+ * was DBL_MIN-DBL_EPSILON, thus just below the bar, but when rounded to the lower
+ * precision of denormals it should be rounded up to normal...
+ * (in the exact half case, note extra==0)
+ */
 		if (z.hi) {
 			sf.significand = z.hi;
 			sf.kind += SF_Denormal - SF_Normal;
+			sf.kind |= doinc ? SFEXCP_Inexhi : SFEXCP_Inexlo;
 			exp = fpi->emin;
 		}
 		else {
-			sf = zerosf(sf.kind & SF_Neg);
+			sf = zerosf(sf.kind | SFEXCP_Inexlo);
 			exp = 0;
 		}
-		sf.kind |= SFEXCP_Underflow;
 	}
 	else if (exp > fpi->emax) {
 		sf.kind |= SFEXCP_Overflow | SFEXCP_Inexhi;
@@ -780,6 +814,8 @@ round(SF sf, ULLong extra, TWORD t)
 			exp = fpi->emax+1;
 		}
 	}
+	else if (extra)
+		sf.kind = doinc ? SFEXCP_Inexhi : SFEXCP_Inexlo;
 	sf.exponent = exp;
 	return sf;
 }
@@ -804,8 +840,7 @@ soft_from_int(CONSZ ll, TWORD f, TWORD t)
 	if (!ISUNSIGNED(f) && ll < 0)
 		rv.kind |= SF_Neg, ll = -ll;
 	rv.significand = ll; /* rv.exponent already 0 */
-/* XXX warning if SFEXCP_Inex? */
-	return SF_ROUND(rv, t);
+	return SFROUND(rv, t);
 }
 
 /*
@@ -815,13 +850,12 @@ soft_from_int(CONSZ ll, TWORD f, TWORD t)
 SF
 soft_fcast(SF sf, TWORD t)
 {
-/* XXX warning if SFEXCP_Underflow/Overflow ? */
-	return SF_ROUND(sf, t);
+	return SFROUND(sf, t);
 }
 
 /*
  * Convert a fp number to a CONSZ. Always chop toward zero.
- * XXX Should warns correctly if out-of-range.
+ * XXX Should warns somehow if out-of-range: in sf_exceptions
  */
 CONSZ
 soft_to_int(SF sf, TWORD t)
@@ -857,12 +891,15 @@ soft_to_int(SF sf, TWORD t)
 	}
 	mant = sf.significand;
 	while (exp < 0)
-/* XXX check overflow */
 		mant >>= 1, exp++;
+/* XXX if (exp > WORKBITS) useless (really SZ of CONSZ) */
 	while (exp > 0)
+/* XXX check overflow */
 		mant <<= 1, exp--;
 	if (sf.kind & SF_Neg)
 		mant = -(long long)mant;
+/* XXX sf_exceptions */
+/* XXX check overflow for target type */
 	return mant;
 }
 
@@ -872,8 +909,8 @@ soft_to_int(SF sf, TWORD t)
 
 /*
  * Negate a softfloat. Easy.
- * XXX Do not work correctly for SF_Zero when negative zero are not supported.
- *     Need to have access to fpi-> (i.e. TWORD t) to solve this.
+ * Do not work correctly for SF_Zero when negative zero are not supported
+ * (need to have access to fpi-> (i.e. TWORD t) to solve this.) Not-a-problem
  */
 SF
 soft_neg(SF sf)
@@ -894,7 +931,7 @@ soft_signbit(SF sf)
 SF
 soft_copysign(SF sf, SF src)
 {
-	sf.kind ^= (src.kind & SF_Neg) ^ (sf.kind & SF_Neg);
+	SFCOPYSIGN(sf, src);
 	return sf;
 }
 
@@ -960,8 +997,7 @@ sfsub(SF x1, SF x2, TWORD t)
 	int diff;
 
 	if (SFISINF(x1) && SFISINF(x2))
-/* XXX "invalid"; warns? */
-		return nansf();
+		return nansf(x1.kind | SFEXCP_Invalid);
 	if (SFISINF(x1))
 		return x1;
 	if (SFISINF(x2))
@@ -983,9 +1019,10 @@ sfsub(SF x1, SF x2, TWORD t)
 	if (diff == 0 && x1.significand == x2.significand) {
 		if ((int)t < 0)
 			t = -(int)t;
+/* XXX sf_constrounding */
 		if ((fpis[t-FLOAT]->rounding & 3) == FPI_Round_down)
-			return zerosf(SF_Neg);
-		return zerosf(0); /* +0, x1==x2==-0 done elsewhere */
+			return zerosf(SF_Neg | (x1.kind & ~SF_Neg));
+		return zerosf(x1.kind & ~SF_Neg); /* x1==x2==-0 done elsewhere */
 	}
 	if (diff < 0 || (diff == 0 && x1.significand < x2.significand)) {
 		rv = SFNEG(x2);
@@ -1003,6 +1040,7 @@ sfsub(SF x1, SF x2, TWORD t)
 
 		t = -(int)t;
 		rd = fpis[t-FLOAT]->rounding;
+/* XXX sf_constrounding */
 		if ((rd & 3) == FPI_Round_up || (rd & 3) == FPI_Round_down) {
 			rv = round(SFNEG(rv), z.lo, t);
 			return SFNEG(rv);
@@ -1014,6 +1052,8 @@ sfsub(SF x1, SF x2, TWORD t)
 SF
 soft_plus(SF x1, SF x2, TWORD t)
 {
+	x1.kind |= x2.kind & SFEXCP_ALLmask;
+	x2.kind |= x1.kind & SFEXCP_ALLmask;
 	if (SFISNAN(x1))
 		return x1;
 	else if (SFISNAN(x2))
@@ -1030,6 +1070,8 @@ soft_plus(SF x1, SF x2, TWORD t)
 SF
 soft_minus(SF x1, SF x2, TWORD t)
 {
+	x1.kind |= x2.kind & SFEXCP_ALLmask;
+	x2.kind |= x1.kind & SFEXCP_ALLmask;
 	if (SFISNAN(x1))
 		return x1;
 	else if (SFISNAN(x2))
@@ -1053,23 +1095,20 @@ soft_mul(SF x1, SF x2, TWORD t)
 	ULong x1hi, x2hi;
 	ULLong mid1, mid, extra;
 
+	x1.kind |= x2.kind & SFEXCP_ALLmask;
+	x2.kind |= x1.kind & SFEXCP_ALLmask;
+	x1.kind ^= x2.kind & SF_Neg;
+	SFCOPYSIGN(x2, x1);
 	if (SFISNAN(x1))
 		return x1;
 	else if (SFISNAN(x2))
 		return x2;
-	if ((SFISINF(x1) && SFISZ(x2))
-	 || (SFISZ(x1) && SFISINF(x2))) {
-/* XXX "invalid"; warns? */
-		return nansf();
-	}
-	if (SFISINF(x1) || SFISZ(x1)) {
-		x1.kind ^= x2.kind & SF_Neg;
+	if ((SFISINF(x1) && SFISZ(x2)) || (SFISZ(x1) && SFISINF(x2)))
+		return nansf(x1.kind | SFEXCP_Invalid);
+	if (SFISINF(x1) || SFISZ(x1))
 		return x1;
-	}
-	if (SFISINF(x2) || SFISZ(x2)) {
-		x2.kind ^= x1.kind & SF_Neg;
+	if (SFISINF(x2) || SFISZ(x2))
 		return x2;
-	}
 	assert(x1.significand && x2.significand);
 	while (x1.significand < NORMALMANT)
 		x1.significand <<= 1, x1.exponent--;
@@ -1077,8 +1116,6 @@ soft_mul(SF x1, SF x2, TWORD t)
 		x2.significand <<= 1, x2.exponent--;
 	if ((x1.kind & SF_kmask) == SF_Denormal)
 		x1.kind -= SF_Denormal - SF_Normal;
-	x1.kind ^= x2.kind & SF_Neg;
-/* XXX copy SFEXCP_ flags? */
 	x1.exponent += x2.exponent + WORKBITS;
 	x1hi = x1.significand >> 32;
 	x1.significand &= ONES(32);
@@ -1117,25 +1154,22 @@ soft_div(SF x1, SF x2, TWORD t)
 	ULLong q, r, oppx2;
 	int exp;
 
+	x1.kind |= x2.kind & SFEXCP_ALLmask;
+	x2.kind |= x1.kind & SFEXCP_ALLmask;
+	x1.kind ^= x2.kind & SF_Neg;
+	SFCOPYSIGN(x2, x1);
 	if (SFISNAN(x1))
 		return x1;
 	else if (SFISNAN(x2))
 		return x2;
-	if ((SFISINF(x1) && SFISINF(x2))
-	 || (SFISZ(x1) && SFISZ(x2))) {
-/* XXX "invalid"; warns? */
-		return nansf();
-	}
-	if (SFISINF(x1) || SFISZ(x1)) {
-		x1.kind ^= x2.kind & SF_Neg;
+	if ((SFISINF(x1) && SFISINF(x2)) || (SFISZ(x1) && SFISZ(x2)))
+		return nansf(x1.kind | SFEXCP_Invalid);
+	if (SFISINF(x1) || SFISZ(x1))
 		return x1;
-	}
 	else if (SFISINF(x2))
-		return zerosf((x1.kind & SF_Neg) ^ (x1.kind & SF_Neg));
-	else if (SFISZ(x2)) {
-/* XXX warns? */
-		return infsf((x1.kind & SF_Neg) ^ (x1.kind & SF_Neg));
-	}
+		return zerosf(x1.kind);
+	else if (SFISZ(x2))
+		return infsf(x2.kind | SFEXCP_DivByZero);
 	assert(x1.significand && x2.significand);
 	while (x1.significand < NORMALMANT)
 		x1.significand <<= 1, x1.exponent--;
@@ -1143,15 +1177,10 @@ soft_div(SF x1, SF x2, TWORD t)
 		x2.significand <<= 1, x2.exponent--;
 	if ((x1.kind & SF_kmask) == SF_Denormal)
 		x1.kind -= SF_Denormal - SF_Normal;
-	x1.kind ^= x2.kind & SF_Neg;
 	exp = x1.exponent - x2.exponent - WORKBITS;
-	if (exp < -30000) {
+	if (exp < -30000)
 		/* huge underflow, flush to 0 to avoid issues */
-		x1 = zerosf(x1.kind & SF_Neg);
-		x1.kind |= SFEXCP_Inexlo | SFEXCP_Underflow;
-		return x1;
-	}
-/* XXX copy SFEXCP_ flags? */
+		return zerosf(x1.kind | SFEXCP_Inexlo | SFEXCP_Underflow);
 	q = 0;
 	if (x1.significand >= x2.significand) {
 		++exp;
@@ -1181,13 +1210,14 @@ soft_div(SF x1, SF x2, TWORD t)
 	if (r) {
 		/* be sure to set correctly highest bit of extra */
 		r += oppx2 / 2;
-		r |= 1; /* rounds to odd */ /* XXX is there special case if power-of-2? */
+		r |= 1; /* rounds to odd */
+/* XXX is there special case if power-of-2? It seems impossible... */
 	}
 	return round(x1, r, t);
 }
 
 /*
- * Comparisons.
+ * Classifications and comparisons.
  */
 
 /*
@@ -1206,6 +1236,18 @@ soft_isnan(SF sf)
 {
 	return (sf.kind & SF_kmask) >= SF_NaN;
 }
+
+/*
+ * Return IEEE754 class of fp number, as SF_xxx enum member.
+ * First clamp the number into its original (semantic) type, cf. 7.12.3.
+ * Can be used to implement isinf, isfinite, isnormal.
+ */
+int
+soft_fpclassify(SF sf, TWORD t)
+{
+	return SFROUND(sf, t).kind & SF_kmask;
+}
+
 
 /*
  * Return true if either operand is NaN.
@@ -1274,7 +1316,7 @@ soft_cmp_lt(SF x1, SF x2)
 	int exp1, exp2;
 
 	if (soft_cmp_unord(x1, x2))
-/* XXX "invalid"; warns? */
+/* XXX "invalid"; warns? use sf_exceptions */
 		return 0;
 	if (SFISZ(x1) && SFISZ(x2))
 		return 0; /* special case: -0 !> +0 */
@@ -1313,7 +1355,7 @@ soft_cmp_gt(SF x1, SF x2)
 	int exp1, exp2;
 
 	if (soft_cmp_unord(x1, x2))
-/* XXX "invalid"; warns? */
+/* XXX "invalid"; warns? use sf_exceptions */
 		return 0;
 	if (SFISZ(x1) && SFISZ(x2))
 		return 0; /* special case: -0 !< +0 */
@@ -1369,7 +1411,7 @@ soft_pack(SF *psf, TWORD t)
 
 	assert(t>=FLOAT && t<=LDOUBLE);
 	fpi = fpis[t-FLOAT];
-	*psf = SF_ROUND(*psf, t);
+	*psf = SFROUND(*psf, t);
 	switch(psf->kind & SF_kmask) {
 	  case SF_Zero:
 		psf->significand = 0;
@@ -1407,12 +1449,12 @@ soft_pack(SF *psf, TWORD t)
 	  case SF_NoNumber:
 	  default:
 		/* Can it happen? Debug_Warns? ICE? */
-		/* Let decay as NaN */
+		/* Let decay as quiet NaN */
 	  case SF_NaN:
-/* XXX can be the result of float f = 0./0.; !!! What to do on a VAX?!? */
 		psf->significand = 3 * ONEZEROES(fpi->nbits-2);
 		/* FALLTHROUGH */
 	  case SF_NaNbits:
+/* XXX 0./0. on a Vax is likely to end here... as an ICE :-( */
 		assert(fpi->has_inf_nan);
 		biasedexp = fpi->emax - fpi->exp_bias + 1;
 		break;
@@ -1430,6 +1472,9 @@ soft_pack(SF *psf, TWORD t)
 NODE *
 fcon2icon(NODE * p)
 {
+#ifdef FLT_IS_NOT_SIGN_EXP_MAGNITUDE
+	return NULL;
+#else
 	SF sf;
 	FPI *fpi;
 	NODE * q;
@@ -1471,10 +1516,10 @@ fcon2icon(NODE * p)
 	if (sf.kind & SF_Neg)
 		q->n_lval |= ((U_CONSZ)1 << (fpi->storage-1));
 	q->n_op = ICON;
-/* XXX needed to change type? */
 	q->n_type = ti;
 	q->n_sp = NULL;
 	return q;
+#endif
 }
 
 /*
@@ -1487,7 +1532,7 @@ floatcon(char *str)
 	TWORD tw;
 	NODE *p;
 	char *sfx, *eptr;
-	FPI *fpi;
+	FPI *fpi, const_fpi;
 	ULong bits[2] = { 0, 0 };
 	Long expt;
 	int k, im;
@@ -1535,7 +1580,11 @@ floatcon(char *str)
 #else
 	fpi = fpis[tw - FLOAT];
 #endif
-
+	if (sf_constrounding != FPI_RoundNotSet) {
+		const_fpi = *fpi;
+		const_fpi.rounding = sf_constrounding;
+		fpi = &const_fpi;
+	}
 	k = strtodg(str, &eptr, fpi, &expt, bits);
 	if (eptr != sfx) /* XXX can happen with "strange" FP constants, like 1.0ifi or 2.LL */
 		uerror("Botch in floatcon, sfx-eptr=%d", (int)(sfx-eptr));

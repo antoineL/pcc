@@ -105,6 +105,8 @@ extern struct FPI fpi_pdp10float,
 	fpi_pdp10double,
 	fpi_kl10Gsingle, /* a.k.a. extended precision */
 	fpi_kl10Gdouble;
+
+#define	FLT_IS_NOT_SIGN_EXP_MAGNITUDE
 #endif
 
 /*
