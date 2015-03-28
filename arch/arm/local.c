@@ -219,7 +219,7 @@ clocal(NODE *p)
 			case DOUBLE:
 			case FLOAT:
 				l->n_op = FCON;
-				l->n_dcon = val;
+				l->n_dcon = FLOAT_FROM_INT(val, l->n_type, p->n_type);
 				break;
 			default:
 				cerror("unknown type %d", l->n_type);
@@ -229,7 +229,10 @@ clocal(NODE *p)
 			nfree(p);
 			return l;
 		} else if (p->n_op == FCON) {
-			l->n_lval = l->n_dcon;
+			if (p->n_type == BOOL)
+				l->n_lval = !FLOAT_ISZERO(l->n_dcon);
+			else
+				l->n_lval =  FLOAT_TO_INT(l->n_dcon, p->n_type);
 			l->n_sp = NULL;
 			l->n_op = ICON;
 			l->n_type = p->n_type;

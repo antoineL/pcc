@@ -490,6 +490,11 @@ static SF sfround(SF, ULLong, TWORD);
 static SF sfadd(SF, SF, TWORD);
 static SF sfsub(SF, SF, TWORD);
 
+#ifndef NO_COMPLEX
+static SF finitemma(SF, SF, int, SF, SF, ULLong *);
+static SF sfddiv(SF, ULLong, SF, ULLong, TWORD);
+#endif
+
 extern int strtodg (const char*, char**, FPI*, Long*, ULong*);
 
 /* IEEE binary formats, and their interchange format encodings */
@@ -1261,6 +1266,7 @@ soft_div(SF x1, SF x2, TWORD t)
 	return sfround(x1, r, t);
 }
 
+#ifndef NO_COMPLEX
 /*
  * Perform the addition or subtraction of two products of finite numbers.
  * Keep the extra bits (do not round).
@@ -1274,23 +1280,14 @@ finitemma(SF a, SF b, int op, SF c, SF d, ULLong * extrap)
 {
 	SF rv;
 	DULLong z, z1, z2;
-	int diff, z1s, z1exp, z2s, z2exp, excess;
+	int diff, z1k, z1exp, z2k, z2exp, excess;
 	ULLong x;
 
-	z1s = (a.kind & SF_Neg) ^ (b.kind & SF_Neg);
-	z2s = (c.kind & SF_Neg) ^ (d.kind & SF_Neg) ^ op;
-#if 0
-	if (SFISINF(x1) && SFISINF(x2))
-		return nansf(x1.kind | SFEXCP_Invalid);
-	if (SFISINF(x1))
-		return x1;
-	if (SFISINF(x2))
-		return SFNEG(x2);
-	if (SFISZ(x2)) /* catches 0 - 0, delivering +0 */
-		return x1;
-	if (SFISZ(x1))
-		return SFNEG(x2);
-#endif
+	z1k = z2k = SF_Normal |
+		(a.kind & SFEXCP_ALLmask) | (b.kind & SFEXCP_ALLmask) |
+		(c.kind & SFEXCP_ALLmask) | (d.kind & SFEXCP_ALLmask);
+	z1k |= (a.kind & SF_Neg) ^ (b.kind & SF_Neg);
+	z2k |= (c.kind & SF_Neg) ^ (d.kind & SF_Neg) ^ op;
 	assert(a.significand && b.significand && c.significand && d.significand);
 	SFNORMALIZE(a);
 	SFNORMALIZE(b);
@@ -1319,8 +1316,8 @@ finitemma(SF a, SF b, int op, SF c, SF d, ULLong * extrap)
 		z2 = lshiftd(z2.hi, z2.lo, 1);
 	}
 	diff = z1exp - z2exp;
-	if (z1s == z2s) { /* same sign, add them; easier */
-/* XXX compute sign, merge exceptions... */
+	if (z1k == z2k) { /* same sign, add them; easier */
+		rv.kind = z1k;
 		if (diff < 0) {
 			z = z2, z2 = z1, z1 = z;
 			rv.exponent = z2exp;
@@ -1346,15 +1343,15 @@ finitemma(SF a, SF b, int op, SF c, SF d, ULLong * extrap)
 		if (diff == 0 && z1.hi == z2.hi && z1.lo == z2.lo) {
 			*extrap = 0;
 /* XXX compute sign of 0 if rounding, merge exceptions... */
-			return zerosf(0);
+			return zerosf(z1k & ~SF_Neg);
 		}
 		else if (diff == 0 && z1.hi == z2.hi) {
 			if (z1.lo > z2.lo) {
-/* sign of z1s */
+				rv.kind = z1k;
 				rv.significand = z1.lo - z2.lo;
 			}
 			else {
-/* sign of z2s */
+				rv.kind = z2k;
 				rv.significand = z2.lo - z1.lo;
 			}
 			rv.exponent = z1exp - WORKBITS;
@@ -1362,8 +1359,7 @@ finitemma(SF a, SF b, int op, SF c, SF d, ULLong * extrap)
 		}
 		else {
 			if (diff < 0 || (diff == 0 && z1.hi < z2.hi)) {
-/* sign of NEG z2s */
-				/* CHANGESIGN */
+				rv.kind = z2k ^ SF_Neg;
 				rv.exponent = z2exp;
 				if (diff != 0) {
 					z = z2;
@@ -1375,7 +1371,7 @@ finitemma(SF a, SF b, int op, SF c, SF d, ULLong * extrap)
 				}
 			}
 			else {
-/* sign of z1s */
+				rv.kind = z1k;
 				rv.exponent = z1exp;
 				if (diff != 0)
 					z2 = rshiftdro(z2.hi, z2.lo, diff );
@@ -1433,6 +1429,8 @@ soft_cxmul(SF r1, SF i1, SF r2, SF i2, SF *rrv, SF *irv, TWORD t)
 		}
 		/* result is an infinity */
 	}
+
+/* XXX missing many special cases with NaN or zeroes... */
 
 	sf = finitemma(r1, r2, FMMMINUS, i1, i2, &extra);
 	*rrv = sfround(sf, extra, t);
@@ -1552,12 +1550,15 @@ soft_cxdiv(SF r1, SF i1, SF r2, SF i2, SF *rrv, SF *irv, TWORD t)
 		/* result is an infinity */
 	}
 
+/* XXX missing many special cases with NaN or zeroes... */
+
 	den= finitemma(r2, r2, FMMPLUS,  i2, i2, &extrad);
 	sf = finitemma(r1, r2, FMMPLUS,  i1, i2, &extra);
 	*rrv = sfddiv(sf, extra, den, extrad, t);
 	sf = finitemma(i1, r2, FMMMINUS, r1, i2, &extra);
 	*irv = sfddiv(sf, extra, den, extrad, t);
 }
+#endif
 
 /*
  * Classifications and comparisons.

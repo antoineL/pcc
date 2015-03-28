@@ -501,6 +501,10 @@ SF soft_plus(SF, SF, TWORD);
 SF soft_minus(SF, SF, TWORD);
 SF soft_mul(SF, SF, TWORD);
 SF soft_div(SF, SF, TWORD);
+#ifndef NO_COMPLEX
+void soft_cxmul(SF, SF, SF, SF, SF*, SF*, TWORD);
+void soft_cxdiv(SF, SF, SF, SF, SF*, SF*, TWORD);
+#endif
 int soft_isz(SF);
 int soft_isnan(SF);
 int soft_fpclassify(SF, TWORD);
