@@ -410,19 +410,6 @@ floatcon(char *s)
  * relevant when the numbers are finally packed into interchange format.
  * If bit 1 is the lowest in the significand, bit fpi->storage has the sign.
  *
- * As a result, this is also a slightly restricted software implementation of
- * IEEE 754:1985 standard. Missing parts, useless in a C compiler, are:
- * - no soft_unpack(), to convert from external binary{32,64} formats
- * - no precision control (not required, dropped in :2008)
- * - no soft_sqrt() operation
- * - no soft_remainder() operation
- * - no soft_rint(), _ceil, or _floor rounding operations
- * - no binary-to-decimal conversion (can use D. Gay's dgtoa.c)
- * - signaling NaNs (SF_NoNumber; should cause SFEXCP_Invalid on every op)
- * - fenv-support is pending
- * - no soft_scalb(), _logb, or _nextafter optional functions
- * As shown above, it should be easy to make it a complete implementation.
- *
  * Some architectures do not use IEEE arithmetic but can nevertheless use
  * the same parametrization. They should provide their own FPI objects.
  * Fields fpi->has_inf_nan and fpi->has_neg_zero cover the non-IEEE cases
@@ -431,11 +418,27 @@ floatcon(char *s)
  *
  * In this implementation, the bits are stored in one large integer
  * (unsigned long long); this limits the number of bits to 64.
+ * Because of the storage representation (but not the implementation),
+ * exponents are restricted to 15 bits.
  *
- * XXX - assumes that:
- *	- (obviously) 2's complement
+ * Furthermore, this implementation assumes that:
+ *	- integers are (obviously) stored as 2's complement
  *	- long long is (at least) 64 bits
  *	- CONSZ is (at least) 64 bits
+ * There are possible issues if int is 16 bits, with divisions.
+ *
+ * As a result, this is also a slightly restricted software implementation of
+ * IEEE 754:1985 standard. Missing parts, useless in a compiler, are:
+ * - no soft_unpack(), to convert from external binary{32,64} formats
+ * - no precision control (not required, dropped in :2008)
+ * - no soft_sqrt() operation
+ * - no soft_remainder() operation
+ * - no soft_rint(), _ceil, or _floor rounding operations
+ * - no binary-to-decimal conversion (can use D. Gay's dgtoa.c)
+ * - signaling NaNs (SF_NoNumber; should cause SFEXCP_Invalid on every op)
+ * - XXX fenv-support is pending
+ * - no soft_scalb(), _logb, or _nextafter optional functions
+ * It should be easy to expand it into a complete implementation.
  *
  * The operations are rounded according to the indicated type.
  * If because of FLT_EVAL_METHOD, the precision has to be greater,
@@ -445,7 +448,6 @@ floatcon(char *s)
 /*
  * API restrictions:
  *	- type information should be between FLOAT and LDOUBLE
- * XXX	- missing complex operations (particularly * and /)
  */
 
 #ifndef Long
@@ -461,9 +463,14 @@ typedef unsigned long long ULLong;
 #define ONEZEROES(n)	(1ull << (n))
 #define ONES(n) 	(ONEZEROES(n) | (ONEZEROES(n)-1))
 
-/* XXX #define WORKBITS	((int)sizeof(ULLong) * 8) */
 #define WORKBITS	64
 #define NORMALMANT	ONEZEROES(WORKBITS-1)
+
+#define SFNORMALIZE(sf)					\
+	while ((sf).significand < NORMALMANT)		\
+		(sf).significand <<= 1, (sf).exponent--;\
+	if (((sf).kind & SF_kmask) == SF_Denormal)	\
+		(sf).kind -= SF_Denormal - SF_Normal;
 
 #define SFNEG(sf)	((sf).kind ^= SF_Neg, sf)
 #define SFCOPYSIGN(sf, src)	\
@@ -522,7 +529,7 @@ FPI * fpis[3] = {
 };
 
 /*
- * Constant rounding control mode (TS 18661 clause 11).
+ * Constant rounding control mode (cf. TS 18661 clause 11).
  * Default is to have no effect. Set through #pragma STDC FENV_ROUND
  */
 int sf_constrounding = FPI_RoundNotSet;
@@ -540,7 +547,7 @@ zerosf(int kind)
 {
 	SF rv;
 
-	assert(SF_Zero == 0);
+	/*static_*/assert(SF_Zero == 0);
 #if 0
 	rv.kind &= ~SF_kmask;
 #else
@@ -611,7 +618,7 @@ hugesf(int kind, TWORD t)
  */
 
 /*
- * Shift right double, rounding to odd.
+ * Shift right double-sized, rounding to odd.
  */
 static DULLong
 rshiftdro(ULLong a, ULLong b, int count)
@@ -634,7 +641,7 @@ rshiftdro(ULLong a, ULLong b, int count)
 }
 
 /*
- * Shift left double.
+ * Shift left double-sized.
  */
 static DULLong
 lshiftd(ULLong a, ULLong b, int count)
@@ -643,6 +650,33 @@ lshiftd(ULLong a, ULLong b, int count)
 	assert((unsigned)count < WORKBITS);
 	z.hi = a << count;
 	z.lo = (a >> (WORKBITS-count)) | (b << count);
+	return z;
+}
+
+/*
+ * Full-range multiply, result to double-sized.
+ */
+static DULLong
+muld(ULLong a, ULLong b)
+{
+	struct DULLong z;
+	ULong ahi, bhi;
+	ULLong mid;
+
+#define HALFWORKBITS	(WORKBITS/2)
+#define LOWHALFMASK	ONES(WORKBITS-HALFWORKBITS)
+	ahi = a >> HALFWORKBITS;
+	a &= LOWHALFMASK;
+	bhi = b >> HALFWORKBITS;
+	b &= LOWHALFMASK;
+	z.lo = a * b;
+	a *= bhi;
+	b *= ahi;
+	mid = (z.lo >> HALFWORKBITS) + (a & LOWHALFMASK) + (b & LOWHALFMASK);
+	z.lo &= LOWHALFMASK;
+	z.lo |= (mid & LOWHALFMASK) << HALFWORKBITS;
+	z.hi = (ULLong) ahi * bhi + (a >> HALFWORKBITS) +
+		(b >> HALFWORKBITS) + (mid >> HALFWORKBITS);
 	return z;
 }
 
@@ -680,7 +714,7 @@ sfround(SF sf, ULLong extra, TWORD t)
 		return sf;
 	  case SF_Denormal:
 		if (exp != fpi->emin || extra) {
-			assert(SF_Denormal > SF_Normal);
+			/*static_*/assert(SF_Denormal > SF_Normal);
 			sf.kind -= SF_Denormal - SF_Normal;
 		}
 		break;
@@ -761,6 +795,9 @@ sfround(SF sf, ULLong extra, TWORD t)
 	else doinc = 0;
 
 	if (exp < fpi->emin) {
+/* XXX NO! IEEE754 says that if result is less than DBL_MIN but can be
+ * represented exactly (as denormal), Underflow exception is NOT signaled.
+ */
 		sf.kind |= SFEXCP_Underflow;
 		if (fpi->sudden_underflow || exp < fpi->emin - fpi->nbits)
 			return zerosf(sf.kind | SFEXCP_Inexlo);
@@ -774,7 +811,7 @@ sfround(SF sf, ULLong extra, TWORD t)
 		}
 		excess = fpi->emin - exp;
 		z = rshiftdro(sf.significand, extra, excess);
-/* XXX need to consider exra here... */
+/* XXX need to consider extra here... */
 		doinc = rd == FPI_Round_up;
 		if ((rd & 3) == FPI_Round_near) {
 			if (z.lo > NORMALMANT)
@@ -955,14 +992,16 @@ sfadd(SF x1, SF x2, TWORD t)
 	if (SFISZ(x1))
 		return x2;
 	assert(x1.significand && x2.significand);
-	while (x1.significand < NORMALMANT)
-		x1.significand <<= 1, x1.exponent--;
-	while (x2.significand < NORMALMANT)
-		x2.significand <<= 1, x2.exponent--;
-	if (x1.exponent - WORKBITS > x2.exponent)
+	SFNORMALIZE(x1);
+	SFNORMALIZE(x2);
+	if (x1.exponent - WORKBITS > x2.exponent) {
+		x1.kind |= SFEXCP_Inexlo;
 		return x1;
-	if (x2.exponent - WORKBITS > x1.exponent)
+	}
+	if (x2.exponent - WORKBITS > x1.exponent) {
+		x2.kind |= SFEXCP_Inexlo;
 		return x2;
+	}
 	diff = x1.exponent - x2.exponent;
 	if (diff < 0) {
 		rv = x2;
@@ -972,8 +1011,6 @@ sfadd(SF x1, SF x2, TWORD t)
 		rv = x1;
 		z = rshiftdro(x2.significand, 0, diff );
 	}
-	if ((rv.kind & SF_kmask) == SF_Denormal)
-		rv.kind -= SF_Denormal - SF_Normal;
 	rv.significand += z.hi;
 	if (rv.significand < NORMALMANT) {
 		/* target mantissa overflows */
@@ -1007,14 +1044,16 @@ sfsub(SF x1, SF x2, TWORD t)
 	if (SFISZ(x1))
 		return SFNEG(x2);
 	assert(x1.significand && x2.significand);
-	while (x1.significand < NORMALMANT)
-		x1.significand <<= 1, x1.exponent--;
-	while (x2.significand < NORMALMANT)
-		x2.significand <<= 1, x2.exponent--;
-	if (x1.exponent - WORKBITS > x2.exponent)
+	SFNORMALIZE(x1);
+	SFNORMALIZE(x2);
+	if (x1.exponent - WORKBITS > x2.exponent) {
+		x1.kind |= (int)t < 0 ? SFEXCP_Inexlo : SFEXCP_Inexhi;
 		return x1;
-	if (x2.exponent - WORKBITS > x1.exponent)
+	}
+	if (x2.exponent - WORKBITS > x1.exponent) {
+		x2.kind |= (int)t < 0 ? SFEXCP_Inexlo : SFEXCP_Inexhi;
 		return SFNEG(x2);
+	}
 	diff = x1.exponent - x2.exponent;
 	if (diff == 0 && x1.significand == x2.significand) {
 		if ((int)t < 0)
@@ -1092,8 +1131,12 @@ soft_minus(SF x1, SF x2, TWORD t)
 SF
 soft_mul(SF x1, SF x2, TWORD t)
 {
+#if 0
 	ULong x1hi, x2hi;
 	ULLong mid1, mid, extra;
+#else
+	DULLong z;
+#endif
 
 	x1.kind |= x2.kind & SFEXCP_ALLmask;
 	x2.kind |= x1.kind & SFEXCP_ALLmask;
@@ -1110,13 +1153,10 @@ soft_mul(SF x1, SF x2, TWORD t)
 	if (SFISINF(x2) || SFISZ(x2))
 		return x2;
 	assert(x1.significand && x2.significand);
-	while (x1.significand < NORMALMANT)
-		x1.significand <<= 1, x1.exponent--;
-	while (x2.significand < NORMALMANT)
-		x2.significand <<= 1, x2.exponent--;
-	if ((x1.kind & SF_kmask) == SF_Denormal)
-		x1.kind -= SF_Denormal - SF_Normal;
+	SFNORMALIZE(x1);
+	SFNORMALIZE(x2);
 	x1.exponent += x2.exponent + WORKBITS;
+#if 0
 	x1hi = x1.significand >> 32;
 	x1.significand &= ONES(32);
 	x2hi = x2.significand >> 32;
@@ -1146,6 +1186,15 @@ soft_mul(SF x1, SF x2, TWORD t)
 		extra <<= 1;
 	}
 	return sfround(x1, extra, t);
+#else
+	z = muld(x1.significand, x2.significand);
+	if (z.hi < NORMALMANT) {
+		x1.exponent--;
+		z = lshiftd(z.hi, z.lo, 1);
+	}
+	x1.significand = z.hi;
+	return sfround(x1, z.lo, t);
+#endif
 }
 
 SF
@@ -1171,14 +1220,10 @@ soft_div(SF x1, SF x2, TWORD t)
 	else if (SFISZ(x2))
 		return infsf(x2.kind | SFEXCP_DivByZero);
 	assert(x1.significand && x2.significand);
-	while (x1.significand < NORMALMANT)
-		x1.significand <<= 1, x1.exponent--;
-	while (x2.significand < NORMALMANT)
-		x2.significand <<= 1, x2.exponent--;
-	if ((x1.kind & SF_kmask) == SF_Denormal)
-		x1.kind -= SF_Denormal - SF_Normal;
+	SFNORMALIZE(x1);
+	SFNORMALIZE(x2);
 	exp = x1.exponent - x2.exponent - WORKBITS;
-	if (exp < -30000)
+	if (exp < -32767)
 		/* huge underflow, flush to 0 to avoid issues */
 		return zerosf(x1.kind | SFEXCP_Inexlo | SFEXCP_Underflow);
 	q = 0;
@@ -1211,9 +1256,307 @@ soft_div(SF x1, SF x2, TWORD t)
 		/* be sure to set correctly highest bit of extra */
 		r += oppx2 / 2;
 		r |= 1; /* rounds to odd */
-/* XXX is there special case if power-of-2? It seems impossible... */
+/* XXX can remainder be power-of-2? doesn't seem it may happen... */
 	}
 	return sfround(x1, r, t);
+}
+
+/*
+ * Perform the addition or subtraction of two products of finite numbers.
+ * Keep the extra bits (do not round).
+ * Note that maximum return exponent is 2*emax+WORKBITS.
+ */
+#define FMMPLUS 	0
+#define FMMMINUS	SF_Neg
+
+static SF
+finitemma(SF a, SF b, int op, SF c, SF d, ULLong * extrap)
+{
+	SF rv;
+	DULLong z, z1, z2;
+	int diff, z1s, z1exp, z2s, z2exp, excess;
+	ULLong x;
+
+	z1s = (a.kind & SF_Neg) ^ (b.kind & SF_Neg);
+	z2s = (c.kind & SF_Neg) ^ (d.kind & SF_Neg) ^ op;
+#if 0
+	if (SFISINF(x1) && SFISINF(x2))
+		return nansf(x1.kind | SFEXCP_Invalid);
+	if (SFISINF(x1))
+		return x1;
+	if (SFISINF(x2))
+		return SFNEG(x2);
+	if (SFISZ(x2)) /* catches 0 - 0, delivering +0 */
+		return x1;
+	if (SFISZ(x1))
+		return SFNEG(x2);
+#endif
+	assert(a.significand && b.significand && c.significand && d.significand);
+	SFNORMALIZE(a);
+	SFNORMALIZE(b);
+	SFNORMALIZE(c);
+	SFNORMALIZE(d);
+	z1exp = a.exponent + b.exponent + WORKBITS;
+	z2exp = c.exponent + d.exponent + WORKBITS;
+#if 0
+	if (z1exp - WORKBITS > z2exp) {
+		x1.kind |= (int)t < 0 ? SFEXCP_Inexlo : SFEXCP_Inexhi;
+		return x1;
+	}
+	if (z2exp - WORKBITS > z1exp) {
+		x2.kind |= (int)t < 0 ? SFEXCP_Inexlo : SFEXCP_Inexhi;
+		return SFNEG(x2);
+	}
+#endif
+	z1 = muld(a.significand, b.significand);
+	if (z1.hi < NORMALMANT) {
+		z1exp--;
+		z1 = lshiftd(z1.hi, z1.lo, 1);
+	}
+	z2 = muld(c.significand, d.significand);
+	if (z2.hi < NORMALMANT) {
+		z2exp--;
+		z2 = lshiftd(z2.hi, z2.lo, 1);
+	}
+	diff = z1exp - z2exp;
+	if (z1s == z2s) { /* same sign, add them; easier */
+/* XXX compute sign, merge exceptions... */
+		if (diff < 0) {
+			z = z2, z2 = z1, z1 = z;
+			rv.exponent = z2exp;
+		}
+		else
+			rv.exponent = z1exp;
+		z2 = rshiftdro(z2.hi, z2.lo, diff );
+		rv.significand = z1.hi + z2.hi;
+		z1.lo += z2.lo;
+		if (z1.lo < z2.lo)
+			++rv.significand;
+		if (rv.significand < NORMALMANT) {
+			/* target mantissa overflows */
+			z = rshiftdro(rv.significand, z1.lo, 1);
+			rv.significand = z.hi | NORMALMANT;
+			++rv.exponent;
+		}
+		else
+			z.lo = z1.lo;
+		*extrap = z.lo;
+	}
+	else { /* opposite sign, substraction, and possible cancellation */
+		if (diff == 0 && z1.hi == z2.hi && z1.lo == z2.lo) {
+			*extrap = 0;
+/* XXX compute sign of 0 if rounding, merge exceptions... */
+			return zerosf(0);
+		}
+		else if (diff == 0 && z1.hi == z2.hi) {
+			if (z1.lo > z2.lo) {
+/* sign of z1s */
+				rv.significand = z1.lo - z2.lo;
+			}
+			else {
+/* sign of z2s */
+				rv.significand = z2.lo - z1.lo;
+			}
+			rv.exponent = z1exp - WORKBITS;
+			z.lo = 0;
+		}
+		else {
+			if (diff < 0 || (diff == 0 && z1.hi < z2.hi)) {
+/* sign of NEG z2s */
+				/* CHANGESIGN */
+				rv.exponent = z2exp;
+				if (diff != 0) {
+					z = z2;
+					z2 = rshiftdro(z1.hi, z1.lo, -diff );
+					z1 = z;
+				}
+				else {
+					z = z2, z2 = z1, z1 = z;
+				}
+			}
+			else {
+/* sign of z1s */
+				rv.exponent = z1exp;
+				if (diff != 0)
+					z2 = rshiftdro(z2.hi, z2.lo, diff );
+			}
+			z.hi = z1.hi - z2.hi;
+			if (z2.lo > z1.lo)
+				--z.hi;
+			z.lo = z1.lo - z2.lo;
+			x = z.hi;
+			for (excess = 0; x < NORMALMANT; ++excess)
+				x <<= 1;
+			z = lshiftd(z.hi, z.lo, excess);
+			rv.exponent -= excess;
+			rv.significand = z.hi;
+		}
+		*extrap = z.lo;
+	}
+	return rv;
+}
+
+#define CXSFISZ(r,i)	(SFISZ(r)   && SFISZ(i))
+#define CXSFISINF(r,i)	(SFISINF(r) || SFISINF(i))
+#define CXSFISNAN(r,i)	(!CXSFISINF(r,i) && (SFISNAN(r) || SFISNAN(i)))
+
+/*
+ * Multiply two complexes (pairs of softfloats)
+ */
+void
+soft_cxmul(SF r1, SF i1, SF r2, SF i2, SF *rrv, SF *irv, TWORD t)
+{
+	SF sf;
+	ULLong extra;
+
+# if 0
+	x1.kind |= x2.kind & SFEXCP_ALLmask;
+	x2.kind |= x1.kind & SFEXCP_ALLmask;
+	x1.kind ^= x2.kind & SF_Neg;
+	SFCOPYSIGN(x2, x1);
+#endif
+	if (CXSFISINF(r1, i1)) {
+		if (CXSFISZ(r2, i2)) {
+			return;
+		}
+		else if (SFISNAN(r2) && SFISNAN(i2)) {
+			return;
+		}
+		/* result is an infinity */
+	}
+	else if (CXSFISINF(r2, i2)) {
+		if (CXSFISZ(r1, i1)) {
+			return;
+		}
+		else if (SFISNAN(r1) && SFISNAN(i1)) {
+			return;
+		}
+		/* result is an infinity */
+	}
+
+	sf = finitemma(r1, r2, FMMMINUS, i1, i2, &extra);
+	*rrv = sfround(sf, extra, t);
+	sf = finitemma(r1, i2, FMMPLUS,  i1, r2, &extra);
+	*irv = sfround(sf, extra, t);
+}
+
+/*
+ * Divide two complexes (pairs of softfloats.) Indeed complex.
+ */
+/*
+ * Helper function: division double by double
+ * Result is correctly rounded.
+ */
+static SF
+sfddiv(SF num, ULLong extran, SF den, ULLong extrad, TWORD t)
+{
+	DULLong zn, zd, r, oppden;
+	ULLong q;
+	int exp, excess;
+
+#if 0
+	num.kind |= den.kind & SFEXCP_ALLmask;
+	den.kind |= num.kind & SFEXCP_ALLmask;
+	num.kind ^= den.kind & SF_Neg;
+	SFCOPYSIGN(den, num);
+#endif
+	assert(num.significand && den.significand);
+	q = num.significand;
+	for (excess = 0; q < NORMALMANT; ++excess)
+		q <<= 1;
+	zn = lshiftd(num.significand, extran, excess);
+	num.exponent -= excess;
+	q = den.significand;
+	for (excess = 0; q < NORMALMANT; ++excess)
+		q <<= 1;
+	zd = lshiftd(den.significand, extrad, excess);
+	den.exponent -= excess;
+	exp = num.exponent - den.exponent - WORKBITS;
+	if (exp < -32767) {
+		/* huge underflow, flush to 0 to avoid issues */
+		return zerosf(num.kind | SFEXCP_Inexlo | SFEXCP_Underflow);
+	}
+	q = 0;
+	if (zn.hi >= zd.hi) {
+		++exp;
+		++q;
+		zn.hi -= zd.hi;
+	}
+	r = zn;
+	if (zd.lo) {
+		oppden.hi = (ONES(WORKBITS-1) - zd.hi);
+		oppden.lo = (ONES(WORKBITS-1) - zd.lo) + 1;
+	}
+	else {
+		oppden.hi = (ONES(WORKBITS-1) - zd.hi) + 1;
+		oppden.lo = 0;
+	}
+	do {
+		q <<= 1;
+		if (r.hi & NORMALMANT) {
+			r.hi &= ~NORMALMANT;
+			r = lshiftd(r.hi, r.lo, 1);
+			r.hi += oppden.hi;
+			r.lo += oppden.lo;
+			if (r.lo < oppden.lo)
+				++r.hi;
+			++q;
+		}
+		else {
+			r = lshiftd(r.hi, r.lo, 1);
+			if (r.hi > zd.hi || r.hi == zd.hi && r.lo >= zd.lo) {
+				r.hi -= zd.hi;
+				if (zd.lo > r.lo)
+					--r.hi;
+				r.lo -= zd.lo;
+				++q;
+			}
+		}
+	} while((q & NORMALMANT) == 0);
+	num.significand = q;
+	num.exponent = exp;
+	if (r.hi) {
+		/* be sure to set correctly highest bit of extra */
+		r.hi += oppden.hi / 2;
+		r.hi |= 1; /* rounds to odd */
+/* XXX is there special case if remainder is power-of-2? can it happen? */
+	}
+	return sfround(num, r.hi, t);
+}
+
+void
+soft_cxdiv(SF r1, SF i1, SF r2, SF i2, SF *rrv, SF *irv, TWORD t)
+{
+	SF den, sf;
+	ULLong extrad, extra;
+
+	if (CXSFISINF(r1, i1)) {
+		if (CXSFISINF(r2, i2)) {
+			return;
+		}
+		else if (SFISNAN(r2) && SFISNAN(i2)) {
+			return;
+		}
+		/* result is an infinity */
+	}
+	else if (CXSFISINF(r2, i2)) {
+		if (SFISNAN(r1) && SFISNAN(i1)) {
+			return;
+		}
+		/* result is zero */
+	}
+	else if (CXSFISZ(r2, i2)) {
+		if (SFISNAN(r2) && SFISNAN(i2)) {
+			return;
+		}
+		/* result is an infinity */
+	}
+
+	den= finitemma(r2, r2, FMMPLUS,  i2, i2, &extrad);
+	sf = finitemma(r1, r2, FMMPLUS,  i1, i2, &extra);
+	*rrv = sfddiv(sf, extra, den, extrad, t);
+	sf = finitemma(i1, r2, FMMMINUS, r1, i2, &extra);
+	*irv = sfddiv(sf, extra, den, extrad, t);
 }
 
 /*

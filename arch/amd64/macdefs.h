@@ -97,9 +97,9 @@
 /*
  * Floating-point types.
  */
-#define FPI_FLOAT	fpibinary32
-#define FPI_DOUBLE	fpibinary64
-#define FPI_LDOUBLE	fpibinaryx80	/* XXX or fpi_binary64, or later fpi_binary128 */
+#define FPI_FLOAT	fpi_binary32
+#define FPI_DOUBLE	fpi_binary64
+#define FPI_LDOUBLE	fpi_binaryx80	/* XXX or fpi_binary64, or later fpi_binary128 */
 #endif
 
 /*
