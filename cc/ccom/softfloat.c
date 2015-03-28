@@ -478,8 +478,8 @@ typedef struct DULLong {
 
 static DULLong rshiftdro(ULLong, ULLong, int);
 static DULLong lshiftd(ULLong, ULLong, int);
-static SF round(SF, ULLong, TWORD);
-#define SFROUND(sf,t)	(round(sf, 0, t))
+static SF sfround(SF, ULLong, TWORD);
+#define SFROUND(sf,t)	(sfround(sf, 0, t))
 static SF sfadd(SF, SF, TWORD);
 static SF sfsub(SF, SF, TWORD);
 
@@ -553,7 +553,7 @@ zerosf(int kind)
 /*
  * Returns a (signed) infinite softfloat.
  * If the target does not support infinites, the "infinite" will propagate
- * until round() below, where it will be transformed to DBL_MAX and exception
+ * until sfround() below, where it will be transformed to DBL_MAX and exception
  */
 SF
 infsf(int kind)
@@ -562,7 +562,7 @@ infsf(int kind)
 
 	rv.kind = SF_Infinite | (kind & ~SF_kmask);
 	rv.significand = NORMALMANT;
-	rv.exponent = fpis[LDOUBLE]->emax + 1;
+	rv.exponent = fpis[LDOUBLE-FLOAT]->emax + 1;
 	return rv;
 }
 
@@ -576,7 +576,7 @@ nansf(int kind)
 
 	rv.kind = SF_NaN | (kind & ~SF_kmask);
 	rv.significand = 3 * ONEZEROES(WORKBITS-2);
-	rv.exponent = fpis[LDOUBLE]->emax + 1;
+	rv.exponent = fpis[LDOUBLE-FLOAT]->emax + 1;
 	return rv;
 }
 
@@ -653,7 +653,7 @@ lshiftd(ULLong a, ULLong b, int count)
 typedef int bool;
 
 static SF
-round(SF sf, ULLong extra, TWORD t)
+sfround(SF sf, ULLong extra, TWORD t)
 {
 	FPI *fpi;
 	ULLong minmant, mant, maxmant;
@@ -981,7 +981,7 @@ sfadd(SF x1, SF x2, TWORD t)
 		rv.significand = z.hi | NORMALMANT;
 		++rv.exponent;
 	}
-	return round(rv, z.lo, t);
+	return sfround(rv, z.lo, t);
 }
 
 /*
@@ -1042,11 +1042,11 @@ sfsub(SF x1, SF x2, TWORD t)
 		rd = fpis[t-FLOAT]->rounding;
 /* XXX sf_constrounding */
 		if ((rd & 3) == FPI_Round_up || (rd & 3) == FPI_Round_down) {
-			rv = round(SFNEG(rv), z.lo, t);
+			rv = sfround(SFNEG(rv), z.lo, t);
 			return SFNEG(rv);
 		}
 	}
-	return round(rv, z.lo, t);
+	return sfround(rv, z.lo, t);
 }
 
 SF
@@ -1145,7 +1145,7 @@ soft_mul(SF x1, SF x2, TWORD t)
 		}
 		extra <<= 1;
 	}
-	return round(x1, extra, t);
+	return sfround(x1, extra, t);
 }
 
 SF
@@ -1213,7 +1213,7 @@ soft_div(SF x1, SF x2, TWORD t)
 		r |= 1; /* rounds to odd */
 /* XXX is there special case if power-of-2? It seems impossible... */
 	}
-	return round(x1, r, t);
+	return sfround(x1, r, t);
 }
 
 /*
@@ -1402,7 +1402,7 @@ soft_cmp_gt(SF x1, SF x2)
  * for the target, the calling code should replace it with SF_NaNbits
  * with the adequate bits into the .significand member.
  */
-/* XXX TODO: implement the NaNbits stuff in round() above... */
+/* XXX TODO: implement the NaNbits stuff in sfround() above... */
 int
 soft_pack(SF *psf, TWORD t)
 {

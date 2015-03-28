@@ -2736,6 +2736,8 @@ strtodg
 					goto infnanexp;
 					}
 			  }
+#else
+			(void)decpt; /* shut up compiler! */
 #endif /* INFNAN_CHECK */
 			irv = STRTOG_NoNumber;
 			s = s00;
